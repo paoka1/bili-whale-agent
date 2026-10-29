@@ -4,7 +4,7 @@ import {
   SegmentedControl, Select, SimpleGrid, Stack, Switch, TagsInput, Text, Textarea, TextInput, Title,
 } from '@mantine/core'
 import { useEffect, useState, type ReactNode } from 'react'
-import { api, type AppConfig, type ConfigResponse } from '../api'
+import { api, configPayload, type AppConfig, type ConfigResponse } from '../api'
 import { BiliAccount } from '../components/BiliAccount'
 
 const num = (v: string | number) => (v === '' ? 0 : Number(v))
@@ -35,7 +35,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
     setSaving(true)
     setNotice(null)
     try {
-      const r = await api<{ restartRequired: boolean }>('/api/config', 'PUT', { config: cfg, persona })
+      const r = await api<{ restartRequired: boolean }>('/api/config', 'PUT', { config: configPayload(cfg), persona })
       setNotice({ color: 'green', text: r.restartRequired ? '已保存。监听地址或端口的修改要重启程序后生效。' : '已保存，立即生效。' })
       load()
     } catch (e) { setNotice({ color: 'red', text: (e as Error).message }) } finally { setSaving(false) }

@@ -117,6 +117,14 @@ it('评论监听失败间隔翻倍，成功后恢复基础间隔', async () => {
   expect(bili.pullInbox).toHaveBeenCalledTimes(3)
 })
 
+it('监听失败的活动记录写明原因，免得只看到「失败」查不出问题', async () => {
+  const s = setup({ listen: { comment: false, dm: true, commentIntervalSec: 30 }, owner: { mid: '222' } })
+  vi.mocked(bili.pullOwnerDms).mockRejectedValueOnce(new Error('主人私信读取失败（code=-400），保留游标'))
+  s.scheduler.start()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(bili.readLog(s.dataDir).map((e) => e.note).join('\n')).toContain('主人私信读取失败（code=-400）')
+})
+
 it('监听遇到请求保护暂停只推送一次，退避重试期间不重复推送', async () => {
   const s = setup({ listen: { comment: true, dm: false, commentIntervalSec: 30 } })
   vi.mocked(bili.pullInbox).mockRejectedValue(new bili.TrafficError('需要人工处理验证码'))

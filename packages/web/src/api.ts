@@ -31,6 +31,9 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
 export const plainHttpWarning = (loc: { protocol: string; hostname: string }) =>
   loc.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(loc.hostname)
 
+/** 保存时不带 self：它由扫码登录写入，页面里那份可能是扫码前的旧值 */
+export const configPayload = (cfg: AppConfig) => ({ ...cfg, self: undefined })
+
 // 只声明网页用到的字段
 export type Window = { start: string; end: string; wakes: number }
 export type AppConfig = {

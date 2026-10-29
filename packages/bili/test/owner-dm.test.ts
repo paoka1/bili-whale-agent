@@ -135,6 +135,12 @@ it('主人新反馈让 Task5 已停止的分享重新可用', async () => {
   expect(checkShare(s.ctx, share)).toEqual({ ok: true })
 })
 
+it('从没聊过时 B 站返回 messages: null，当作空会话建立基线（2026-10-29 真机实测）', async () => {
+  const s = setup(() => json({ code: 0, data: { messages: null, has_more: 0, min_seqno: '18446744073709551615', max_seqno: 0 } }))
+  expect(await pullOwnerDms(s.ctx, { baseline: false, lastSeq: null })).toEqual({ messages: [], state: { baseline: true, lastSeq: null } })
+  expect(await pullOwnerDms(s.ctx, { baseline: false, lastSeq: null })).toEqual({ messages: [], state: { baseline: true, lastSeq: null } })
+})
+
 it('服务器时钟比 B 站慢几秒时，主人刚发的私信不能因「未来时间」被跳过', async () => {
   const s = setup(() => page([row(2, { timestamp: Math.floor(s.ctx.now() / 1000) + 5 })]))
   expect((await pullOwnerDms(s.ctx, unread)).messages.map((m) => m.id)).toEqual(['2'])

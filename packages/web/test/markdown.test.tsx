@@ -1,7 +1,7 @@
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
 import { Markdown } from '../src/components/Markdown'
-import { plainHttpWarning } from '../src/api'
+import { configPayload, plainHttpWarning, type AppConfig } from '../src/api'
 
 afterEach(cleanup)
 
@@ -15,6 +15,14 @@ it('正常的 markdown 照常渲染', () => {
   render(<Markdown source={'# 今天\n\n看了 [一个视频](https://www.bilibili.com/video/BV1AAAAAAAAA)'} />)
   expect(document.querySelector('h1')?.textContent).toBe('今天')
   expect(document.querySelector('a')?.getAttribute('href')).toBe('https://www.bilibili.com/video/BV1AAAAAAAAA')
+})
+
+// 2026-10-29 真机：页面先打开、后扫码，保存时把旧的空 self 写回，覆盖了扫码记下的账号
+it('保存配置不带 self（扫码登录写的，网页上不可编辑）', () => {
+  const cfg = { dryRun: true, owner: { mid: '1', name: '主人' }, self: { mid: '', name: '' } } as unknown as AppConfig
+  const sent = JSON.parse(JSON.stringify(configPayload(cfg)))
+  expect(sent).not.toHaveProperty('self')
+  expect(sent.owner).toEqual({ mid: '1', name: '主人' })
 })
 
 it.each([

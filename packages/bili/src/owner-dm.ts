@@ -57,15 +57,17 @@ async function pullOnce(ctx: BiliContext, supplied: OwnerDmState): Promise<Owner
     const query = new URLSearchParams({ talker_id: owner, session_type: '1', size: '30', begin_seqno: cursor })
     const result = await biliGet<{ messages?: unknown[]; has_more?: number | string | boolean }>(ctx,
       `https://api.vc.bilibili.com/svr_sync/v1/svr_sync/fetch_session_msgs?${query}`, { wbi: true })
-    if (result.code !== 0 || !Array.isArray(result.data?.messages)) throw new Error(`主人私信读取失败（code=${result.code}），保留游标`)
-    const rows = result.data.messages.map(normalize)
+    // 2026-10-29 真机实测：从没聊过时返回 code 0 + messages: null，是空会话不是失败
+    const raw = result.data?.messages ?? (result.code === 0 ? [] : undefined)
+    if (result.code !== 0 || !Array.isArray(raw)) throw new Error(`主人私信读取失败（code=${result.code}），保留游标`)
+    const rows = raw.map(normalize)
     for (const row of rows) {
       const previous = all.get(row.seq)
       if (previous && JSON.stringify(previous) !== JSON.stringify(row)) throw new Error('私信重叠分页内容不一致，保留游标')
       all.set(row.seq, row)
     }
     // 首次只检查最新一页，不回放历史；之后必须翻到已读边界，不能被自己最近发出的消息遮住。
-    const more = result.data.has_more
+    const more = result.data?.has_more
     if (!state.baseline || (boundary !== null && rows.some((r) => BigInt(r.seq) <= boundary))
       || more === 0 || more === '0' || more === false || (more === undefined && rows.length < 30)) break
     if (more !== undefined && more !== 1 && more !== '1' && more !== true) throw new Error('私信分页状态无效，保留游标')

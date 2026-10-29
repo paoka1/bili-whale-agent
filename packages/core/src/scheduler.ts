@@ -208,7 +208,11 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       } else if (e instanceof TrafficError) {
         // 人工暂停可能持续数小时，只在这轮连续失败的第一次推送，退避重试期间不重复打扰
         if (policy.failures === 1) await send(cfg, ctx, { title: `请求保护已暂停：${e.message}`, text: '监听暂时退避，请检查请求保护状态。' })
-      } else logFailure(source === 'comment' ? '评论监听失败，稍后自动重试' : '主人私信监听失败，稍后自动重试')
+      } else {
+        // bili 包的错误信息已去掉凭据，写上原因才查得出问题
+        const reason = String((e as Error)?.message ?? '未知错误').slice(0, 200)
+        logFailure(`${source === 'comment' ? '评论监听' : '主人私信监听'}失败，稍后自动重试：${reason}`)
+      }
     } finally {
       policy.busy = false
       policy.nextAt = now() + pollDelay(cfg.listen.commentIntervalSec, policy.failures)
