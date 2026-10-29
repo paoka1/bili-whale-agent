@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@bili-whale/bili": "0.1.0"
+    "@bili-whale/bili": "0.1.0",
+    "zod": "^4.6.7"
   }
 }

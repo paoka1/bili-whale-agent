@@ -1,2 +1,4 @@
 // agent 底座：配置、agent 工具与提示词、作息调度、推送、HTTP 服务、启动命令。
-export {}
+export { ConfigSchema, ConfigError, loadConfig, saveConfig, readPersona, writePersona } from './config.js'
+export type { AppConfig } from './config.js'
+export * from './secrets.js'
