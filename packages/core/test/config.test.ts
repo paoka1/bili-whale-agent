@@ -4,6 +4,7 @@ import path from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { RISK_DEFAULTS } from '@bili-whale/bili'
 import { ConfigError, loadConfig, readPersona, saveConfig, writePersona } from '../src/config.js'
+import { maxWakes } from '../src/night.js'
 import { loadSecrets, maskSecrets, saveSecrets } from '../src/secrets.js'
 
 const dirs: string[] = []
@@ -21,7 +22,8 @@ it('空目录合并中性默认值，默认开启演练且监听本机', () => {
   expect(config.server).toMatchObject({ host: '127.0.0.1', port: 8787 })
   expect(config.risk).toEqual(RISK_DEFAULTS)
   expect(config.preferences.like).toEqual(['AI 工具与插件', '鬼畜与怀旧向剪辑', '猫咪', 'Live2D/模型'])
-  expect(config.night).toMatchObject({ windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0.3, minGapMin: 10, maxVideos: 5, maxWakesPerDay: 1 })
+  expect(config.night).toMatchObject({ windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0.3, minGapMin: 10, maxVideos: 5 })
+  expect(maxWakes(config.night)).toBe(1)
   expect(config.listen).toEqual({ comment: false, commentIntervalSec: 60, dm: true })
 })
 
@@ -33,6 +35,15 @@ it('局部保存递归合并，数组替换，配置变化即时生效且零额�
   expect(config.preferences.like).toEqual(['音乐'])
   expect(config.quota.shareDaily).toBe(0)
   expect(loadConfig(dir)).toEqual(config)
+})
+
+it('每日醒来上限默认跟随各窗口次数之和，保存后不被写死，可设置也可清除', () => {
+  const dir = directory()
+  saveConfig(dir, { dryRun: false }) // 先存一次，旧实现会在这里把默认上限 1 写进文件
+  const windows = [{ start: '08:00', end: '10:00', wakes: 2 }, { start: '20:00', end: '24:00', wakes: 2 }]
+  expect(maxWakes(saveConfig(dir, { night: { windows } }).night)).toBe(4)
+  expect(maxWakes(saveConfig(dir, { night: { maxWakesPerDay: 3 } }).night)).toBe(3)
+  expect(maxWakes(saveConfig(dir, { night: { maxWakesPerDay: null } }).night)).toBe(4)
 })
 
 it('允许跨午夜窗口，拒绝无效时间且保留原配置', () => {

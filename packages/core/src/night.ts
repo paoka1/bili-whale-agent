@@ -1,7 +1,7 @@
 // 移植 upstream/tools/lib/night-plan.mjs；比较绝对的本地日历时间，保留跨午夜与夏令时语义。
 export type NightConfig = {
   windows?: { start: string; end: string; wakes?: number }[]
-  windowStart?: string; windowEnd?: string; maxWakesPerDay?: number
+  windowStart?: string; windowEnd?: string; maxWakesPerDay?: number | null
   skipChance?: number; minGapMin?: number; maxVideos?: number
 }
 export type NightHistory = {

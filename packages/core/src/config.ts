@@ -17,8 +17,9 @@ const night = z.strictObject({
   skipChance: z.number().min(0).max(1).default(0.3),
   minGapMin: z.number().min(1).default(10),
   maxVideos: z.number().int().min(1).max(20).default(5),
-  maxWakesPerDay: z.number().int().min(0).max(12).optional(),
-}).transform((value) => ({ ...value, maxWakesPerDay: value.maxWakesPerDay ?? Math.min(12, value.windows.reduce((sum, w) => sum + w.wakes, 0)) }))
+  // 不填或 null = 各窗口次数之和（night.ts 的 maxWakes 计算）；不能把算出的默认值存进文件，否则改窗口后上限被写死
+  maxWakesPerDay: z.number().int().min(0).max(12).nullable().optional(),
+})
 
 export const ConfigSchema = z.strictObject({
   llm: model.extend({ images: z.boolean().default(false) }).prefault({}),
