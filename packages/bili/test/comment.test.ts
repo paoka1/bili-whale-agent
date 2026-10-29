@@ -52,6 +52,16 @@ it('回复主人：root=0 归一为 parent，并可从 data.root 核实顶层作
   expect(form.get('parent')).toBe('9')
 })
 
+// 2026-10-29 真机：楼中楼回复，B 站回读的正文前会自动加「回复 @昵称 :」，不能当成复核失败
+it.each([['收到', undefined], ['别的话', expect.stringContaining('复核未通过')]])('楼中楼回读带「回复 @」前缀：%s', async (stored, reason) => {
+  const s = fakeWrites({ handler: (url) => url.pathname === '/x/v2/reply/reply' ? json({ code: 0, data: {
+    root: { rpid_str: '9', mid: '222', content: { message: '主楼' } },
+    replies: [{ rpid_str: '99', mid: '222', content: { message: '主人的回复' } }, { rpid_str: '1000', mid: '111', content: { message: `回复 @主人 :${stored}` } }],
+  } }) : undefined })
+  const r = await postComment(s.ctx, { bvid: BV, root: '9', parent: '99', message: '收到' })
+  expect(r).toEqual({ status: 'sent', rpid: '1000', ...(reason ? { reason } : {}) })
+})
+
 it('查不到被回复者时拒绝直发，演练也要过这个闸门', async () => {
   const s = fakeWrites({ handler: (url) => url.pathname === '/x/v2/reply/reply' ? json({ code: 0, data: { replies: [] } }) : undefined })
   s.ctx.dryRun = true

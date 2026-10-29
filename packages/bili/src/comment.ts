@@ -64,7 +64,9 @@ export async function publishComment(ctx: BiliContext, opt: { bvid: string; oid:
     }
   } catch (e) { if (isFatalBiliError(e)) throw e }
   if (!found) return { status: 'sent', rpid, reason: '评论已发送，暂未回读到，可能审核中；请核查，勿重复发送' }
-  if (String(found.mid ?? found.member?.mid ?? '') !== me.mid || found.content?.message !== opt.message) {
+  // 2026-10-29 真机：楼中楼回复回读时 B 站会在正文前加「回复 @昵称 :」，去掉再比
+  const stored = String(found.content?.message ?? '').replace(/^回复 @[^:：]+\s*[:：]\s*/, '')
+  if (String(found.mid ?? found.member?.mid ?? '') !== me.mid || stored !== opt.message) {
     return { status: 'sent', rpid, reason: '评论已发送，但署名或正文复核未通过，请人工核查，勿重复发送' }
   }
   return { status: 'sent', rpid }
