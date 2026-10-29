@@ -2,3 +2,6 @@
 export { ConfigSchema, ConfigError, loadConfig, saveConfig, readPersona, writePersona } from './config.js'
 export type { AppConfig } from './config.js'
 export * from './secrets.js'
+export * from './untrusted.js'
+export * from './tools.js'
+export * from './vision.js'
