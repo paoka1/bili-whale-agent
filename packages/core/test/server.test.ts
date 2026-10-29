@@ -224,3 +224,14 @@ it('静态资源和前端页面无需登录，API 不落入前端路由', async 
   const res = await app.request('/api/setup', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' }, body: JSON.stringify({ code: s.auth.setupCode(), password }) })
   expect(res.status).toBe(403)
 })
+
+// 2026-10-29 真机：请求保护提示「处理后在网页上恢复」，但网页没有恢复入口
+it('网页可以解除当前账号的人工暂停，需要 CSRF 并写审计', async () => {
+  const s = setup(), headers = s.login()
+  const resume = vi.spyOn(s.ctx.guard, 'resume')
+  expect((await s.request('/api/traffic/resume', 'POST', undefined, { cookie: headers.cookie })).status).toBe(403)
+  expect((await s.request('/api/traffic/resume', 'POST', undefined, headers)).status).toBe(200)
+  expect(resume).toHaveBeenCalledTimes(1)
+  expect(new Headers(resume.mock.calls[0]![0]).get('cookie')).toContain('SESSDATA=')
+  expect(readJsonl<{ action: string }>(path.join(s.dataDir, 'audit.jsonl')).map((e) => e.action)).toContain('traffic-resume')
+})

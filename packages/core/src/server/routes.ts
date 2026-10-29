@@ -148,6 +148,13 @@ export function registerRoutes(app: Hono<ServerEnv>, deps: AppDeps): void {
       }, serverTime: now.toISOString(), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone })
   })
   app.post('/api/wake', (c) => c.json(scheduler.wakeNow()))
+  // 验证码等需要人工处理的暂停：主人在 B 站处理完后从网页解除（只清当前账号的人工暂停，定时退避照常到期）
+  app.post('/api/traffic/resume', async (c) => {
+    const ctx = getCtx()
+    await ctx.guard.resume(biliHeaders(ctx))
+    record(c, 'traffic-resume')
+    return c.json({ ok: true })
+  })
   app.get('/api/drafts', (c) => c.json(listDrafts(dataDir)))
   app.post('/api/drafts/:id/approve', async (c) => {
     const key = id(c), result = await approveDraft(getCtx(), key)

@@ -47,6 +47,10 @@ export function Activity() {
     } catch (e) { setError((e as Error).message) }
   }
 
+  const resume = async () => {
+    try { await api('/api/traffic/resume', 'POST'); setNotice('已恢复请求'); refresh() } catch (e) { setError((e as Error).message) }
+  }
+
   if (!status) return error ? <Alert color="red">{error}</Alert> : <Loader />
   const zone = status.timezone
   const { share, favorites, traffic } = status.quota
@@ -71,7 +75,13 @@ export function Activity() {
           <Text size="sm">收藏 {favorites.used}/{favorites.daily}</Text>
           <Text size="sm">今日请求 读 {traffic.readDay} · 写 {traffic.writeDay}</Text>
         </SimpleGrid>
-        {traffic.reason && <Alert color="orange" mt="sm">请求保护已暂停{traffic.pausedUntil ? `（到 ${timeIn(zone, traffic.pausedUntil, true)}）` : ''}：{traffic.reason}</Alert>}
+        {traffic.reason && (
+          <Alert color="orange" mt="sm">
+            <Text size="sm">请求保护已暂停{traffic.pausedUntil ? `（到 ${timeIn(zone, traffic.pausedUntil, true)}）` : ''}：{traffic.reason}</Text>
+            <Text size="xs" c="dimmed" mt={4}>登录失效就到配置页重新扫码；要过验证码就先在 B 站上用这个号处理完，再点下面的按钮。</Text>
+            <Button size="xs" variant="light" color="orange" mt="xs" onClick={resume}>已处理，恢复请求</Button>
+          </Alert>
+        )}
       </Paper>
       {notice && <Alert color="blue" withCloseButton onClose={() => setNotice('')}>{notice}</Alert>}
       {error && <Alert color="red">{error}</Alert>}

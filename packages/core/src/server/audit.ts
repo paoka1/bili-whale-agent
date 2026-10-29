@@ -2,7 +2,7 @@
 import { appendJsonl, dataPath } from '@bili-whale/bili'
 
 export type AuditEntry = {
-  action: 'setup' | 'login' | 'logout' | 'logout-all' | 'config' | 'secrets' | 'password' | 'qr-start' | 'draft-approve' | 'draft-reject'
+  action: 'setup' | 'login' | 'logout' | 'logout-all' | 'config' | 'secrets' | 'password' | 'qr-start' | 'draft-approve' | 'draft-reject' | 'traffic-resume'
   ip: string; ok: boolean; target?: string
 }
 export function audit(dataDir: string, entry: AuditEntry): void {
