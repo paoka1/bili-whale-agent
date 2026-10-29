@@ -99,15 +99,13 @@ it('登录失败按来源退避，连续十次锁十五分钟，成功后恢复'
   expect(readJsonl(path.join(s.dataDir, 'audit.jsonl'))).toContainEqual(expect.objectContaining({ action: 'login', ok: false }))
 })
 
-it('改密钥需正确密码，重新验密也受登录退避限制', async () => {
-  vi.useFakeTimers()
+// 2026-10-29 用户定：登录后改 key、换号不再重复输入密码（改网页密码本身仍要旧密码）
+it('登录后改密钥无需再输密码，局部更新，审计不含密钥', async () => {
   const s = setup(), headers = s.login()
-  expect((await s.request('/api/secrets', 'PUT', { password, llmApiKey: 'new-key' }, headers)).status).toBe(200)
-  expect((await s.request('/api/secrets', 'PUT', { password: 'wrong', llmApiKey: 'bad-key' }, headers)).status).toBe(429)
-  expect(loadSecrets(s.dataDir).llmApiKey).toBe('new-key')
-  vi.advanceTimersByTime(1000)
-  expect((await s.request('/api/secrets', 'PUT', { password, visionApiKey: 'vision-key' }, headers)).status).toBe(200)
+  expect((await s.request('/api/secrets', 'PUT', { llmApiKey: 'new-key' }, headers)).status).toBe(200)
+  expect((await s.request('/api/secrets', 'PUT', { visionApiKey: 'vision-key' }, headers)).status).toBe(200)
   expect(loadSecrets(s.dataDir)).toEqual({ llmApiKey: 'new-key', visionApiKey: 'vision-key' })
+  expect((await s.request('/api/secrets', 'PUT', { llmApiKey: 'x' }, { cookie: headers.cookie })).status).toBe(403)
   const audit = JSON.stringify(readJsonl(path.join(s.dataDir, 'audit.jsonl')))
   expect(audit).not.toMatch(/new-key|vision-key|测试密码/)
   expect(audit).toContain('secrets')
@@ -137,19 +135,18 @@ it('会话七天过期，损坏的认证文件不能当成首次设置', () => {
   expect(() => createAuth(s.dataDir)).toThrow('auth.json')
 })
 
-it('扫码初次无需验密，已有账号需密码，有待审草稿时拒绝换号', async () => {
+it('扫码换号无需再输密码，有待审草稿时拒绝换号', async () => {
   const s = setup(), headers = s.login()
   const start = vi.spyOn(s.qr, 'start').mockResolvedValue({ id: 'qr', status: 'waiting', expiresAt: 123 })
   expect((await s.request('/api/qr/start', 'POST', {}, headers)).status).toBe(200)
   expect(await (await s.request('/api/account', 'GET', undefined, headers)).json()).toEqual({ loggedIn: false, mid: '', name: '' })
   saveCred(s.dataDir, s.ctx.cred)
   expect(await (await s.request('/api/account', 'GET', undefined, headers)).json()).toEqual({ loggedIn: true, mid: '111', name: '小号' })
-  expect((await s.request('/api/qr/start', 'POST', {}, headers)).status).toBe(400)
-  expect((await s.request('/api/qr/start', 'POST', { password }, headers)).status).toBe(200)
+  expect((await s.request('/api/qr/start', 'POST', {}, headers)).status).toBe(200)
   vi.spyOn(s.qr, 'poll').mockResolvedValue({ id: 'qr', status: 'waiting', expiresAt: 123 })
   expect(await (await s.request('/api/qr/qr', 'GET', undefined, headers)).json()).toMatchObject({ id: 'qr', status: 'waiting' })
   addDraft(s.ctx, { bvid: 'BV1AAAAAAAAA', oid: '101', root: '8', parent: '9', who: '访客', src: '你好', message: '你好呀' })
-  expect((await s.request('/api/qr/start', 'POST', { password }, headers)).status).toBe(409)
+  expect((await s.request('/api/qr/start', 'POST', {}, headers)).status).toBe(409)
   expect(start).toHaveBeenCalledTimes(2)
   const poll = vi.mocked(s.qr.poll).mockClear()
   expect((await s.request('/api/qr/qr', 'GET', undefined, headers)).status).toBe(409)

@@ -1,5 +1,5 @@
-// B 站账号：显示当前登录，扫码登录 / 换号（换号要当前网页密码），二维码每 2 秒轮询一次。
-import { Alert, Button, Group, Image, PasswordInput, Stack, Text } from '@mantine/core'
+// B 站账号：显示当前登录，扫码登录 / 换号，二维码每 2 秒轮询一次。
+import { Alert, Button, Group, Image, Stack, Text } from '@mantine/core'
 import { useCallback, useEffect, useState } from 'react'
 import { api, type Account, type QrState } from '../api'
 
@@ -10,7 +10,6 @@ const STATUS: Record<QrState['status'], string> = {
 export function BiliAccount() {
   const [account, setAccount] = useState<Account | null>(null)
   const [qr, setQr] = useState<QrState | null>(null)
-  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
 
   const loadAccount = useCallback(() => {
@@ -24,7 +23,7 @@ export function BiliAccount() {
     const timer = setInterval(() => {
       api<QrState>(`/api/qr/${qr.id}`).then((next) => {
         setQr(next)
-        if (next.status === 'confirmed') { setPassword(''); loadAccount() }
+        if (next.status === 'confirmed') loadAccount()
       }).catch((e) => { setError((e as Error).message); setQr(null) })
     }, 2000)
     return () => clearInterval(timer)
@@ -32,17 +31,14 @@ export function BiliAccount() {
 
   const start = async () => {
     setError('')
-    try { setQr(await api<QrState>('/api/qr/start', 'POST', account?.loggedIn ? { password } : {})) } catch (e) { setError((e as Error).message) }
+    try { setQr(await api<QrState>('/api/qr/start', 'POST', {})) } catch (e) { setError((e as Error).message) }
   }
 
   return (
     <Stack gap="xs">
       <Text size="sm">{account === null ? '读取中…' : account.loggedIn ? `已登录：${account.name}（mid ${account.mid}）` : '未登录'}</Text>
-      {account?.loggedIn && !pending && (
-        <PasswordInput label="当前网页密码" description="更换 B 站账号时需要；有待审草稿或正在运行时不能换号" value={password} onChange={(e) => setPassword(e.currentTarget.value)} />
-      )}
       {!pending && (
-        <Group><Button variant="light" onClick={start} disabled={account?.loggedIn === true && !password}>{account?.loggedIn ? '换号重新扫码' : '扫码登录'}</Button></Group>
+        <Group><Button variant="light" onClick={start}>{account?.loggedIn ? '换号 / 重新扫码' : '扫码登录'}</Button></Group>
       )}
       {qr && (
         <Stack gap={4}>

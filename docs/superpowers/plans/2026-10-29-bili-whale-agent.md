@@ -358,8 +358,8 @@ it('工具集里没有任何执行命令或读任意文件的工具', () => { ex
   - `createApp(deps: { dataDir; auth: Auth; scheduler: Scheduler; getCtx: () => BiliContext; qr: QrLogin; webDist?: string }): Hono`
   - 路由（除 `/api/setup`、`/api/login`、静态文件外都要会话 cookie；非 GET 要 `X-CSRF-Token`）：
     - `POST /api/setup` `{ code, password }`；`POST /api/login` `{ password }`；`POST /api/logout`；`POST /api/logout-all`
-    - `GET /api/config` → `{ config, secrets: maskSecrets(), persona }`；`PUT /api/config` `{ config?, persona? }`（改 `server.host/port` 时响应带 `restartRequired: true`）；`PUT /api/secrets` `{ password, llmApiKey?, visionApiKey? }`（需当前密码）；`PUT /api/password` `{ current, next }`（成功后其他会话全部失效）
-    - `POST /api/qr/start` `{ password? }`（已登录 B 站时必须带正确密码，且有待审草稿时拒绝换号）、`GET /api/qr/:id`、`GET /api/account` → `{ loggedIn, mid, name }`
+    - `GET /api/config` → `{ config, secrets: maskSecrets(), persona }`；`PUT /api/config` `{ config?, persona? }`（改 `server.host/port` 时响应带 `restartRequired: true`）；`PUT /api/secrets` `{ llmApiKey?, visionApiKey? }`；`PUT /api/password` `{ current, next }`（成功后其他会话全部失效）
+    - `POST /api/qr/start`（有待审草稿或正在运行时拒绝换号）、`GET /api/qr/:id`、`GET /api/account` → `{ loggedIn, mid, name }`
     - `GET /api/status` → `{ ...scheduler.status(), dryRun, quota: 今日用量, serverTime: ISO, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }`
     - `POST /api/wake` → `scheduler.wakeNow()`
     - `GET /api/drafts`；`POST /api/drafts/:id/approve`；`POST /api/drafts/:id/reject` `{ reason? }`
@@ -375,9 +375,9 @@ it('未登录访问 /api/config 返回 401', ...)
 it('GET /api/config 的响应里没有任何 key 原文', async () => { saveSecrets(dir, { llmApiKey: 'sk-SECRET123' }); expect(await res.text()).not.toContain('sk-SECRET123') })
 it('缺少 CSRF 头的 PUT 返回 403', ...)
 it('连续登录失败后被锁定并返回 retryAfterMs', ...)
-it('改 key 需要正确的当前密码', ...)
+it('登录后改 key 无需再输密码', ...)  // 2026-10-29 用户定：登录后改 key、换号不再重复验密，改网页密码仍要旧密码
 it('改密码后旧会话失效', ...)
-it('已登录 B 站时 qr/start 不带密码被拒；有待审草稿时被拒', ...)
+it('有待审草稿时 qr/start 被拒', ...)
 it('/api/status 含 serverTime 与 timezone', ...)
 it('错误响应不泄露 cookie 或 key', ...)
 ```

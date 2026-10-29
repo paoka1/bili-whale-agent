@@ -1,4 +1,4 @@
-// 一页表单：保存即生效（监听地址 / 端口要重启）。key 只写不回显，单独保存且要当前网页密码。
+// 一页表单：保存即生效（监听地址 / 端口要重启）。key 只写不回显，随「保存配置」一起保存。
 import {
   Accordion, ActionIcon, Alert, Button, Checkbox, Divider, Group, Loader, NumberInput, Paper, PasswordInput,
   SegmentedControl, Select, SimpleGrid, Stack, Switch, TagsInput, Text, Textarea, TextInput, Title,
@@ -18,6 +18,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [data, setData] = useState<ConfigResponse | null>(null)
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [persona, setPersona] = useState('')
+  const [keys, setKeys] = useState({ llmApiKey: '', visionApiKey: '' })
   const [notice, setNotice] = useState<{ color: string; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -35,6 +36,10 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
     setSaving(true)
     setNotice(null)
     try {
+      // 只发填了的 key；留空表示不修改
+      const keyPatch = Object.fromEntries(Object.entries(keys).filter(([, v]) => v))
+      if (Object.keys(keyPatch).length) await api('/api/secrets', 'PUT', keyPatch)
+      setKeys({ llmApiKey: '', visionApiKey: '' })
       const r = await api<{ restartRequired: boolean }>('/api/config', 'PUT', { config: configPayload(cfg), persona })
       setNotice({ color: 'green', text: r.restartRequired ? '已保存。监听地址或端口的修改要重启程序后生效。' : '已保存，立即生效。' })
       load()
@@ -62,8 +67,14 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
             <TextInput label="看图模型名" value={cfg.vision.model} onChange={(e) => set('vision', { model: e.currentTarget.value })} />
           </SimpleGrid>
         )}
-        <Divider />
-        <Keys secrets={data.secrets} vision={cfg.vision.enabled} onSaved={load} />
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>
+          <PasswordInput label="主模型 API key" placeholder={data.secrets.llmApiKey ? '已设置，留空不修改' : '未设置'} autoComplete="off"
+            value={keys.llmApiKey} onChange={(e) => setKeys({ ...keys, llmApiKey: e.currentTarget.value })} />
+          {cfg.vision.enabled && (
+            <PasswordInput label="看图模型 API key" placeholder={data.secrets.visionApiKey ? '已设置，留空不修改' : '未设置'} autoComplete="off"
+              value={keys.visionApiKey} onChange={(e) => setKeys({ ...keys, visionApiKey: e.currentTarget.value })} />
+          )}
+        </SimpleGrid>
       </Block>
 
       <Block title="B 站账号"><BiliAccount /></Block>
@@ -167,35 +178,6 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
       <Paper withBorder p="sm" pos="sticky" bottom={8} style={{ zIndex: 5 }}>
         <Group justify="flex-end"><Button onClick={save} loading={saving} disabled={persona.length > 3000}>保存配置</Button></Group>
       </Paper>
-    </Stack>
-  )
-}
-
-function Keys({ secrets, vision, onSaved }: { secrets: ConfigResponse['secrets']; vision: boolean; onSaved: () => void }) {
-  const [llmApiKey, setLlm] = useState('')
-  const [visionApiKey, setVision] = useState('')
-  const [password, setPassword] = useState('')
-  const [notice, setNotice] = useState<{ color: string; text: string } | null>(null)
-  const save = async () => {
-    try {
-      await api('/api/secrets', 'PUT', { password, ...(llmApiKey ? { llmApiKey } : {}), ...(visionApiKey ? { visionApiKey } : {}) })
-      setLlm(''); setVision(''); setPassword('')
-      setNotice({ color: 'green', text: 'key 已保存' })
-      onSaved()
-    } catch (e) { setNotice({ color: 'red', text: (e as Error).message }) }
-  }
-  const hint = (set: boolean) => (set ? '已设置，留空不修改' : '未设置')
-  return (
-    <Stack gap="xs">
-      <SimpleGrid cols={{ base: 1, sm: 2 }}>
-        <PasswordInput label="主模型 API key" placeholder={hint(secrets.llmApiKey)} value={llmApiKey} onChange={(e) => setLlm(e.currentTarget.value)} autoComplete="off" />
-        {vision && <PasswordInput label="看图模型 API key" placeholder={hint(secrets.visionApiKey)} value={visionApiKey} onChange={(e) => setVision(e.currentTarget.value)} autoComplete="off" />}
-      </SimpleGrid>
-      <Group align="end">
-        <PasswordInput label="当前网页密码" description="修改 key 需要" w={240} value={password} onChange={(e) => setPassword(e.currentTarget.value)} />
-        <Button variant="light" onClick={save} disabled={!password || (!llmApiKey && !visionApiKey)}>保存 key</Button>
-      </Group>
-      {notice && <Alert color={notice.color}>{notice.text}</Alert>}
     </Stack>
   )
 }

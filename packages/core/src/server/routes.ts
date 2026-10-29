@@ -19,9 +19,9 @@ const newPassword = password.min(10)
 const setupInput = z.strictObject({ code: z.string().max(64), password: newPassword })
 const loginInput = z.strictObject({ password })
 const configInput = z.strictObject({ config: z.unknown().optional(), persona: z.string().max(3000).optional() })
-const secretsInput = z.strictObject({ password, llmApiKey: z.string().max(8192).optional(), visionApiKey: z.string().max(8192).optional() })
+// 2026-10-29 用户定：登录后改 key、换号不再重复验密（会话 + CSRF 已足够）；改网页密码仍要旧密码
+const secretsInput = z.strictObject({ llmApiKey: z.string().max(8192).optional(), visionApiKey: z.string().max(8192).optional() })
 const passwordInput = z.strictObject({ current: password, next: newPassword })
-const qrInput = z.strictObject({ password: password.optional() })
 const rejectInput = z.strictObject({ reason: z.string().max(500).optional() })
 const idInput = z.string().regex(/^[a-zA-Z0-9-]{1,64}$/)
 const limitInput = z.coerce.number().int().min(0).max(1000)
@@ -92,9 +92,7 @@ export function registerRoutes(app: Hono<ServerEnv>, deps: AppDeps): void {
     return c.json({ ok: true, restartRequired: JSON.stringify(before.server) !== JSON.stringify(config.server) })
   })
   app.put('/api/secrets', async (c) => {
-    const { password, ...patch } = await body(c, secretsInput), check = auth.checkPassword(password, ipOf(c))
-    if (!check.ok) { record(c, 'secrets', false); return denied(c, check.retryAfterMs) }
-    saveSecrets(dataDir, patch)
+    saveSecrets(dataDir, await body(c, secretsInput))
     record(c, 'secrets')
     return c.json({ ok: true })
   })
@@ -106,13 +104,9 @@ export function registerRoutes(app: Hono<ServerEnv>, deps: AppDeps): void {
     return c.json({ ok: true })
   })
   app.post('/api/qr/start', async (c) => {
-    const input = await body(c, qrInput)
     if (loadCred(dataDir)) {
       const blocked = accountChangeBlocked(c)
       if (blocked) return blocked
-      if (input.password === undefined) return c.json({ error: '更换 B 站账号需要输入当前网页密码' }, 400)
-      const check = auth.checkPassword(input.password, ipOf(c))
-      if (!check.ok) { record(c, 'qr-start', false); return denied(c, check.retryAfterMs) }
     }
     const result = await qr.start()
     record(c, 'qr-start')
