@@ -27,6 +27,8 @@
 - 网页：默认监听 `127.0.0.1:8787`，`--host` / 配置可改为 `0.0.0.0`；密码至少 10 位，scrypt 哈希；首次启动在终端打印 8 位设置码。
 - 所有面向用户的文字用中文。
 - LICENSE 为 MIT，同时保留 `Copyright (c) 2026 ALTERSSSS` 与本项目作者版权行；README 注明来源。
+- **只在边界校验**（2026-10-29 定）：外部输入在进入系统的地方校验一次——agent 工具的 zod schema（Task 8）、HTTP 接口（Task 11）、读入的本地文件与 B 站响应。内部函数之间信任 TypeScript 类型，不重复检查格式、类型、范围。安全相关的业务规则（额度、收信人、回复对象是否主人、域名白名单）不算重复校验，仍在执行它的函数里强制。
+- **测试从简**（2026-10-29 定）：每条规则一个通过用例 + 一个拒绝用例；同一个检查不穷举多组输入（例如不用 5 种损坏 JSON 各测一遍）；不为 B 站基本不会出现的响应形状写用例。测试是为了守住规则与踩过的坑，不是为了覆盖每个分支。
 
 ## Review Focus
 
@@ -418,3 +420,9 @@ it('日记里的脚本与事件属性被清除', () => {
 - [ ] **Step 6: Commit** — `feat: cli entry, docs`
 - [ ] **Step 7: 真机验证（演练模式）** — 在 局域网里的 Ubuntu 服务器上：拷贝构建产物到 `~/bili-whale-agent`，`node packages/core/dist/cli.js start --host 0.0.0.0`（端口 8787，与现有服务不冲突），浏览器打开 → 输入设置码设密码 → 配模型（DeepSeek）→ 用**测试号**扫码 → 填主人 mid → 点「立即唤醒」。Expected：活动页出现一轮记录（看了哪些视频、`comment_post` 为 dry-run），两本日记有内容，`traffic-state.json` 写入次数为 0。
 - [ ] **Step 8: 真机验证（真实写入）** — 测试号转正后，在配置里关闭演练模式，再唤醒一次。Expected：测试号在 B 站真实发出一条评论或分享，活动页与 `quota.json` 记录一致。
+- [ ] **Step 9: 按真机结果精简 `packages/bili`**（Task 4–6 的防御与测试偏多，按上面「只在边界校验」「测试从简」两条约定回头收紧）：
+  - 评论、收藏、私信、草稿、抽帧函数里去掉与 Task 8 zod schema 重复的格式 / 类型 / 范围检查。
+  - `qr-login.ts` 只保留三条：二维码地址必须是官方域名、nav 核验通过才替换旧凭据、返回给网页的状态不含凭据；去掉昵称打码、128KB 流式限长、cookie 控制字符与冲突检测。
+  - `owner-dm.ts` 的已读位置只留 `owner-dm-state.json` 一个来源，`pullOwnerDms(ctx)` 不再接收 `state` 参数（同步改 Task 10 调用处）。
+  - 测试按「测试从简」合并：损坏账本、非法参数、扫码状态机、私信分页的穷举用例各留一正一反。
+  - 真机上实际触发过的防御（看 `whale-log.jsonl` 与报错）保留并在注释里写明日期。Expected：`npm test` 通过，`packages/bili` 源码与测试行数明显下降。Commit — `refactor(bili): trim defensive checks after field test`
