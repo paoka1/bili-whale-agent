@@ -69,8 +69,8 @@ export function Activity() {
           <Stack gap={4}>
             <Group gap="xs">
               <Title order={4}>{status.running ? `醒着：${RUN_KIND[status.running] ?? status.running}` : '睡着'}</Title>
-              {status.dryRun && <Badge color="yellow">演练模式</Badge>}
-              {status.queue.length > 0 && <Badge variant="light">排队 {status.queue.length}</Badge>}
+              {status.dryRun && <Badge size="lg" color="yellow">演练模式</Badge>}
+              {status.queue.length > 0 && <Badge size="lg" variant="light">排队 {status.queue.length}</Badge>}
             </Group>
             <Text size="sm" c="dimmed">服务器时间 {timeIn(zone, status.serverTime)}（{zone}）</Text>
             <Text size="sm">下次醒来：{status.nextWakeAt ? `${timeIn(zone, status.nextWakeAt, true)}（${status.nextWindow}）` : '今天没有了'}</Text>
@@ -131,8 +131,8 @@ export function Activity() {
                     // 系统记录（运行摘要、监听失败等）淡显，不盖过她自己的动态
                     return (
                       <Timeline.Item key={i} color={kind.color} opacity={kind.system ? 0.55 : 1}
-                        title={<Group gap="xs"><Badge size="sm" variant="light" color={kind.color}>{kind.label}</Badge>{!kind.system && <Target value={e.target} />}</Group>}>
-                        <Text size={kind.system ? 'xs' : 'sm'} className="pre-line">{e.note}</Text>
+                        title={<Group gap="xs"><Badge size="lg" variant="light" color={kind.color}>{kind.label}</Badge>{!kind.system && <Target value={e.target} />}</Group>}>
+                        <Text size={kind.system ? 'sm' : 'md'} className="pre-line">{e.note}</Text>
                         <Text size="xs" c="dimmed">{timeIn(zone, e.at, true)}</Text>
                       </Timeline.Item>
                     )
@@ -174,19 +174,19 @@ function RunCard({ run, zone }: { run: RunRecord; zone: string }) {
   return (
     <Paper withBorder p="sm">
       <Group gap="xs">
-        <Text size="sm" fw={500}>{RUN_KIND[run.kind] ?? run.kind}</Text>
-        <Badge size="sm" color={status.color} variant="light">{status.label}</Badge>
+        <Text size="md" fw={500}>{RUN_KIND[run.kind] ?? run.kind}</Text>
+        <Badge size="lg" color={status.color} variant="light">{status.label}</Badge>
         <Text size="xs" c="dimmed">{timeIn(zone, run.startedAt, true)} · {minutes} 分钟 · {run.steps} 步{run.draftsAdded ? ` · 新草稿 ${run.draftsAdded}` : ''}</Text>
       </Group>
       {run.toolCalls.length > 0 && (
         <Group gap={4} mt={6}>
-          {run.toolCalls.map((t, i) => <Badge key={i} size="xs" variant={t.ok ? 'default' : 'filled'} color={t.ok ? 'gray' : 'red'}>{toolLabel(t.name)}{t.ok ? '' : ' ✗'}</Badge>)}
+          {run.toolCalls.map((t, i) => <Badge key={i} size="lg" variant={t.ok ? 'default' : 'filled'} color={t.ok ? 'gray' : 'red'}>{toolLabel(t.name)}{t.ok ? '' : ' ✗'}</Badge>)}
         </Group>
       )}
       {run.error && <Text size="xs" c="red" mt={6}>{run.error}</Text>}
       {run.finalText.trim() && (
-        <Spoiler maxHeight={60} showLabel="展开" hideLabel="收起" mt={6}>
-          <Text size="xs" c="dimmed" className="pre-line">{run.finalText}</Text>
+        <Spoiler maxHeight={72} showLabel="展开" hideLabel="收起" mt={6}>
+          <Text size="sm" c="dimmed" className="pre-line">{run.finalText}</Text>
         </Spoiler>
       )}
     </Paper>

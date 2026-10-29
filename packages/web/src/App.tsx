@@ -44,9 +44,9 @@ export default function App() {
           <Group h="100%" justify="space-between" wrap="nowrap">
             <Title order={4}>bili-whale</Title>
             <Group gap="xs" wrap="nowrap">
-              <SegmentedControl size="xs" value={page} onChange={(v) => setPage(v as typeof page)}
+              <SegmentedControl size="sm" value={page} onChange={(v) => setPage(v as typeof page)}
                 data={[{ value: 'activity', label: '活动' }, { value: 'config', label: '配置' }]} />
-              <Button size="xs" variant="subtle" onClick={logout}>退出</Button>
+              <Button size="sm" variant="subtle" onClick={logout}>退出</Button>
             </Group>
           </Group>
         </Container>

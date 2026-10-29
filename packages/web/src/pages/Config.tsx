@@ -60,7 +60,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
     <Stack pb={80}>
       <Paper withBorder px="xs" py={6} pos="sticky" top={64} style={{ zIndex: 6, overflowX: 'auto' }}>
         <Group gap={4} wrap="nowrap">
-          {SECTIONS.map((title) => <Button key={title} size="compact-xs" variant="subtle" onClick={() => jump(title)} style={{ flexShrink: 0 }}>{title}</Button>)}
+          {SECTIONS.map((title) => <Button key={title} size="compact-sm" variant="subtle" onClick={() => jump(title)} style={{ flexShrink: 0 }}>{title}</Button>)}
         </Group>
       </Paper>
       <Paper withBorder p="md" bg={cfg.dryRun ? 'yellow.0' : undefined}>
@@ -127,7 +127,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
               onClick={() => set('night', { windows: windows.filter((_, j) => j !== i) })}>✕</ActionIcon>
           </Group>
         ))}
-        <Group><Button size="xs" variant="light" onClick={() => set('night', { windows: [...windows, { start: '12:00', end: '14:00', wakes: 1 }] })}>添加时段</Button></Group>
+        <Group><Button size="sm" variant="light" onClick={() => set('night', { windows: [...windows, { start: '12:00', end: '14:00', wakes: 1 }] })}>添加时段</Button></Group>
         <SimpleGrid cols={{ base: 1, sm: 3 }}>
           <NumberInput label="跳过看视频的概率" description="跳过时只写日记" min={0} max={1} step={0.1} decimalScale={2} value={cfg.night.skipChance} onChange={(v) => set('night', { skipChance: num(v) })} />
           <NumberInput label="两次醒来至少隔（分钟）" min={1} value={cfg.night.minGapMin} onChange={(v) => set('night', { minGapMin: num(v) })} />
@@ -139,7 +139,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
         <Switch label="把好视频分享给主人" checked={cfg.share.enabled} onChange={(e) => set('share', { enabled: e.currentTarget.checked })} />
         <Group>
           <Text size="sm">分享方式</Text>
-          <SegmentedControl size="xs" value={cfg.share.via} onChange={(via) => set('share', { via: via as AppConfig['share']['via'] })}
+          <SegmentedControl size="sm" value={cfg.share.via} onChange={(via) => set('share', { via: via as AppConfig['share']['via'] })}
             data={[{ value: 'comment', label: '评论区 @ 主人' }, { value: 'dm', label: '私信主人' }]} />
         </Group>
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
