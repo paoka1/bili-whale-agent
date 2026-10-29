@@ -117,6 +117,15 @@ it('评论监听失败间隔翻倍，成功后恢复基础间隔', async () => {
   expect(bili.pullInbox).toHaveBeenCalledTimes(3)
 })
 
+it('监听遇到请求保护暂停只推送一次，退避重试期间不重复推送', async () => {
+  const s = setup({ listen: { comment: true, dm: false, commentIntervalSec: 30 } })
+  vi.mocked(bili.pullInbox).mockRejectedValue(new bili.TrafficError('需要人工处理验证码'))
+  s.scheduler.start()
+  await vi.advanceTimersByTimeAsync(10 * 60_000)
+  expect(vi.mocked(bili.pullInbox).mock.calls.length).toBeGreaterThanOrEqual(3)
+  expect(notifications.notify).toHaveBeenCalledTimes(1)
+})
+
 it('轮询退避封顶十五分钟，但保留用户更长的间隔', () => {
   expect(pollDelay(30, 8)).toBe(900_000)
   expect(pollDelay(1800, 8)).toBe(1_800_000)

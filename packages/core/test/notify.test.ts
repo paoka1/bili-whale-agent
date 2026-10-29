@@ -24,6 +24,16 @@ it('私信走 dmOwner，保留演练模式及闸门拒绝结果', async () => {
   expect(await notify(cfg, s.ctx, msg)).toEqual({ ok: false, error: '双方需要互关' })
 })
 
+it('私信推送超过 300 字时截断并提示看网页，免得被 dmOwner 整条拒绝', async () => {
+  const s = fakeBili(() => undefined), cfg = ConfigSchema.parse({ notify: { type: 'dm' } })
+  vi.mocked(bili.dmOwner).mockResolvedValue({ status: 'sent' })
+  expect(await notify(cfg, s.ctx, { title: '她醒来过一次', text: '信'.repeat(1000) })).toEqual({ ok: true })
+  const { message } = vi.mocked(bili.dmOwner).mock.calls[0]![1]
+  expect(message.length).toBeLessThanOrEqual(300)
+  expect(message.startsWith('她醒来过一次\n信')).toBe(true)
+  expect(message.endsWith('…（全文见网页活动页）')).toBe(true)
+})
+
 it.each([
   ['https://example.com/hook', msg],
   ['https://open.feishu.cn/open-apis/bot/v2/hook/secret', { msg_type: 'text', content: { text: '通知\n今晚看到了猫' } }],

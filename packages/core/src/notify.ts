@@ -20,7 +20,10 @@ export async function notify(cfg: AppConfig, ctx: BiliContext, msg: Notification
   if (cfg.notify.type === 'dm') {
     try {
       // dmOwner 负责互关、额度与演练模式，不绕过任何写闸门。
-      const result = await dmOwner(ctx, { message: `${msg.title}\n${msg.text}` })
+      // dmOwner 限 300 字，给主人的信常更长：截断并指向网页，免得整条被拒
+      const full = `${msg.title}\n${msg.text}`, tail = '…（全文见网页活动页）'
+      const message = full.length <= 300 ? full : full.slice(0, 300 - tail.length) + tail
+      const result = await dmOwner(ctx, { message })
       return result.status === 'refused' ? { ok: false, error: result.reason ?? '私信推送被拒绝' } : { ok: true }
     } catch { return { ok: false, error: '私信推送未完成，请检查登录与请求保护状态' } }
   }
