@@ -74,7 +74,10 @@ async function parse<T>(response: Response): Promise<BiliResponse<T>> {
   if (!response.ok) return { code: -1, message: `HTTP ${response.status}（B 站风控或接口异常，请稍后重试）` }
   const text = await response.text()
   try {
-    const data = JSON.parse(text)
+    // 2026-10-22 上游修复：评论/私信 ID 可能超出安全整数范围，必须保留十进制原值。
+    const data = JSON.parse(text.replace(/"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g, (token) => {
+      return /^-?(?:0|[1-9]\d*)$/.test(token) && !Number.isSafeInteger(Number(token)) ? JSON.stringify(token) : token
+    }))
     if (!data || typeof data !== 'object') throw new Error('invalid')
     return { ...data, code: Number(data.code), message: String(data.message ?? '') }
   } catch {

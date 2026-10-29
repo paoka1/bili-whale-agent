@@ -1,9 +1,9 @@
-// 读类能力测试共用：一个按 URL 路由的假 B 站，外加记录下来的请求。
+// 能力测试共用：一个按 URL 路由的假 B 站，外加记录下来的请求。
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach } from 'vitest'
-import { createTrafficGuard, RISK_DEFAULTS } from '../src/traffic.js'
+import { createTrafficGuard } from '../src/traffic.js'
 import { defaultSettings, type BiliContext } from '../src/context.js'
 
 export const keys = { imgKey: '7cd084941338484aae1ad9425b84077c', subKey: '4932caff0ff746eab6f01bf08b70ac45' }
@@ -22,7 +22,7 @@ export function fakeBili(handler: (url: URL, init: RequestInit) => Response | Pr
   let time = Date.now()
   const guard = createTrafficGuard({
     dataDir,
-    settings: () => RISK_DEFAULTS,
+    settings: () => ctx.settings.risk,
     now: () => time,
     sleep: async (ms) => { time += ms },
     transport: async (input, init = {}) => {
@@ -42,7 +42,7 @@ export function fakeBili(handler: (url: URL, init: RequestInit) => Response | Pr
     now: () => time,
     ...over,
   }
-  return { ctx, calls, dataDir }
+  return { ctx, calls, dataDir, advance: (ms: number) => { time += ms } }
 }
 
 export const viewData = (over: Record<string, unknown> = {}) => ({
