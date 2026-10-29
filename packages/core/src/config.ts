@@ -21,7 +21,7 @@ const night = z.strictObject({
 }).transform((value) => ({ ...value, maxWakesPerDay: value.maxWakesPerDay ?? Math.min(12, value.windows.reduce((sum, w) => sum + w.wakes, 0)) }))
 
 export const ConfigSchema = z.strictObject({
-  llm: model.prefault({}),
+  llm: model.extend({ images: z.boolean().default(false) }).prefault({}),
   vision: model.extend({ enabled: z.boolean().default(false) }).prefault({}),
   persona: z.strictObject({ name: z.string().default('<角色名>'), ownerTitle: z.string().default('你'), selfClaim: z.string().default('我') }).prefault({}),
   owner: account.prefault({}),
@@ -95,7 +95,8 @@ export function saveConfig(dataDir: string, patch: unknown): AppConfig {
 }
 
 function personaWithinLimit(text: string): string {
-  if (text.length > 20000) throw new ConfigError('人设不能超过 20000 字')
+  // 与 systemPrompt 实际使用的长度一致，超出部分不会悄悄丢掉
+  if (text.length > 3000) throw new ConfigError('人设不能超过 3000 字')
   return text
 }
 

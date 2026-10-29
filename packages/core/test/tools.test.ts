@@ -110,15 +110,27 @@ it('日记回读不打码主人昵称，免得整篇覆盖时把名字永久替�
   expect(read).not.toEqual(expect.stringContaining('已打码'))
 })
 
-it('深读通过 SDK 的 toModelOutput 交回图片，路径不进入模型输出', async () => {
+it('主模型看图优先，工具只交回本地路径，模型工具消息仅含文字', async () => {
   const s = imageFixture()
-  const tools = buildTools(s.ctx, 'wake', {})
+  const describeImage = vi.fn()
+  const tools = buildTools(s.ctx, 'wake', { imagesToModel: true, describeImage })
   const input = { bvid: BV, grid: '4x4' }
   const output = await call(tools, 'video_deep', input)
   const modelOutput = await tools.video_deep!.toModelOutput!({ toolCallId: 'test', input, output })
-  expect(modelOutput).toMatchObject({ type: 'content', value: expect.arrayContaining([{ type: 'file', mediaType: 'image/jpeg', data: { type: 'data', data: fs.readFileSync(s.imagePath).toString('base64') } }]) })
+  expect(output).toMatchObject({ imagePath: s.imagePath })
+  expect(output).not.toHaveProperty('image')
+  expect(modelOutput).toMatchObject({ type: 'text', value: expect.stringContaining('画面拼图见下一条消息') })
   expect(JSON.stringify(modelOutput)).not.toContain(s.imagePath)
+  expect(describeImage).not.toHaveBeenCalled()
   expect(bili.captureFrames).toHaveBeenCalledWith(expect.anything(), BV, { grid: '4x4' })
+})
+
+it('两种看图能力都关闭时不抽帧，仍返回文字资料与跳过原因', async () => {
+  const s = imageFixture()
+  const output = await call(buildTools(s.ctx, 'wake', {}), 'video_deep', { bvid: BV })
+  expect(output).toMatchObject({ text: expect.stringContaining('主模型不能看图且没开看图模型，跳过画面') })
+  expect(output).toMatchObject({ text: expect.stringContaining('字幕') })
+  expect(bili.captureFrames).not.toHaveBeenCalled()
 })
 
 it('配置看图回调时返回文字描述；缺 ffmpeg 时仍保留字幕等资料', async () => {

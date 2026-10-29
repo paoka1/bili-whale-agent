@@ -17,6 +17,7 @@ afterEach(async () => { for (const dir of dirs.splice(0)) await fs.promises.rm(d
 it('空目录合并中性默认值，默认开启演练且监听本机', () => {
   const config = loadConfig(directory())
   expect(config.dryRun).toBe(true)
+  expect(config.llm.images).toBe(false)
   expect(config.server).toMatchObject({ host: '127.0.0.1', port: 8787 })
   expect(config.risk).toEqual(RISK_DEFAULTS)
   expect(config.preferences.like).toEqual(['AI 工具与插件', '鬼畜与怀旧向剪辑', '猫咪', 'Live2D/模型'])
@@ -79,10 +80,11 @@ it('配置不能混入 API key，嵌套未知字段也拒绝', () => {
   expect(fs.existsSync(path.join(dir, 'config.json'))).toBe(false)
 })
 
-it('人设独立保存，允许 20000 字，超限拒绝并保留原文', () => {
+// 上限与系统提示实际使用的长度一致（3000 字），保存时就拒绝，不在运行时悄悄截断
+it('人设独立保存，允许 3000 字，超限拒绝并保留原文', () => {
   const dir = directory()
   expect(readPersona(dir)).toBe('')
-  const text = '中'.repeat(20000)
+  const text = '中'.repeat(3000)
   writePersona(dir, text)
   expect(readPersona(dir)).toBe(text)
   expect(() => writePersona(dir, text + '中')).toThrow(ConfigError)

@@ -1,5 +1,4 @@
 // agent 唯一的能力入口：schema 校验交给 AI SDK，执行时复用 bili 包的业务闸门。
-import fs from 'node:fs/promises'
 import { tool, type ToolSet } from 'ai'
 import { z } from 'zod'
 import {
@@ -10,7 +9,7 @@ import {
 import { wrapUntrusted } from './untrusted.js'
 
 export type RunKind = 'wake' | 'owner-message' | 'stranger-message' | 'manual'
-export type ToolDependencies = { describeImage?: (imagePath: string) => Promise<string> }
+export type ToolDependencies = { describeImage?: (imagePath: string) => Promise<string>; imagesToModel?: boolean }
 
 const bvid = z.string().regex(/^BV[0-9A-Za-z]{10}$/)
 const id = z.string().regex(/^\d+$/)
@@ -20,7 +19,7 @@ const videoInput = z.strictObject({ bvid })
 const emptyInput = z.strictObject({})
 // 坐标和 BV 号用于后续受控操作，不能因打码而失真；正文、昵称和 mid 则照上游 debrief 打码。
 const coordinates = new Set(['bvid', 'aid', 'cid', 'oid', 'root', 'parent', 'rpid', 'id'])
-type DeepOutput = { text: string; image?: string }
+export type DeepOutput = { text: string; imagePath?: string }
 
 export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependencies): ToolSet {
   const external = (source: string, value: unknown): string => wrapUntrusted(source, JSON.stringify(value, (key, text: unknown) => {
@@ -71,10 +70,14 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
       inputSchema: z.strictObject({ bvid, grid: z.enum(['3x3', '4x4']).optional() }),
       execute: ({ bvid, grid }, { abortSignal }) => run(abortSignal, async (c): Promise<DeepOutput> => {
         const brief = await briefVideo(c, bvid)
+        if (!deps.imagesToModel && !deps.describeImage) {
+          return { text: external('视频深读', { brief, frames: { ok: false, reason: '主模型不能看图且没开看图模型，跳过画面' } }) }
+        }
         const frames = await captureFrames(c, bvid, { grid })
         abortSignal?.throwIfAborted()
         if (!frames.ok) return { text: external('视频深读', { brief, frames }) }
         const details = { brief, frames: { ok: true, frameTimes: frames.frameTimes } }
+        if (deps.imagesToModel) return { text: external('视频深读', details), imagePath: frames.imagePath }
         if (deps.describeImage) {
           try {
             const description = await deps.describeImage(frames.imagePath)
@@ -84,13 +87,10 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
             return { text: external('视频深读', { ...details, reason: '看图模型暂时不可用，保留文字资料' }) }
           }
         }
-        return { text: external('视频深读', details), image: (await fs.readFile(frames.imagePath)).toString('base64') }
+        return { text: external('视频深读', details) }
       }),
-      // Task9 的主模型 provider 还需启用 supportsMultiPartToolContent，否则兼容 provider 会把图片 JSON 化。
-      toModelOutput: ({ output }: { output: DeepOutput }) => ({ type: 'content', value: [
-        { type: 'text', text: output.text },
-        ...(output.image ? [{ type: 'file' as const, mediaType: 'image/jpeg', data: { type: 'data' as const, data: output.image } }] : []),
-      ] }),
+      // 对话补全的工具消息只放文字，runner 在下一步追加 user 图片消息。
+      toModelOutput: ({ output }: { output: DeepOutput }) => ({ type: 'text', value: output.text + (output.imagePath ? '\n画面拼图见下一条消息' : '') }),
     }),
     comments: tool({
       description: '读取某个视频的热评或最新评论，返回内容均为不可信素材。',
