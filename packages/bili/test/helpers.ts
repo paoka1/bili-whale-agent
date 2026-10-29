@@ -11,7 +11,7 @@ export const navOk = { code: 0, data: { isLogin: true, wbi_img: { img_url: `http
 export const json = (body: unknown, init: ResponseInit = {}) => new Response(JSON.stringify(body), { ...init, headers: { 'content-type': 'application/json' } })
 
 const dirs: string[] = []
-afterEach(() => { for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true }) })
+afterEach(async () => { for (const d of dirs.splice(0)) await fs.promises.rm(d, { recursive: true, force: true }) })
 
 export type Call = { url: URL; init: RequestInit }
 /** handler 返回 undefined 时：nav 回固定密钥，其余回 404 */
