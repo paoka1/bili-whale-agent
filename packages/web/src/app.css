@@ -1,0 +1,4 @@
+.markdown img { max-width: 100%; }
+.markdown table { border-collapse: collapse; }
+.markdown th, .markdown td { border: 1px solid var(--mantine-color-default-border); padding: 4px 8px; }
+.pre-line { white-space: pre-line; }
