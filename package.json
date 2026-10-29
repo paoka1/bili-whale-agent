@@ -15,7 +15,8 @@
   "scripts": {
     "build": "tsc -b packages/bili packages/core && npm run build -w packages/web",
     "test": "npm test --workspaces --if-present",
-    "fetch-upstream": "node scripts/fetch-upstream.mjs"
+    "fetch-upstream": "node scripts/fetch-upstream.mjs",
+    "start": "node packages/core/dist/bin.js start"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
