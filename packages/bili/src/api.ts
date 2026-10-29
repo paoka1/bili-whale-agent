@@ -3,7 +3,7 @@
 import crypto from 'node:crypto'
 import type { BiliContext } from './context.js'
 import { cookieHeader } from './creds.js'
-import { assertBiliUrl } from './net.js'
+import { assertBiliUrl, isBiliApiHost } from './net.js'
 import { dataPath } from './paths.js'
 import { readJson, writeJsonAtomic } from './store.js'
 import { TrafficError } from './traffic.js'
@@ -23,6 +23,9 @@ export class DryRunError extends Error {
     this.name = 'DryRunError'
   }
 }
+
+/** 风控暂停与登录失效要一路抛到调度器；其他失败可以降级（少一路素材、跳过一个词） */
+export const isFatalBiliError = (e: unknown): boolean => e instanceof TrafficError || e instanceof LoginExpiredError
 
 const MIXIN = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35, 27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13, 37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4, 22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52]
 
@@ -44,7 +47,7 @@ const CACHE_TTL_MS = 24 * 3600 * 1000
 const NAV_TTL_MS = 10 * 60 * 1000 // WBI 密钥会轮换
 const STALE_MAX_MS = 7 * CACHE_TTL_MS
 // 只缓存静态元信息；评论、收件箱、播放地址（含短期授权）一律实时获取
-const CACHEABLE = [/^\/x\/web-interface\/(wbi\/)?view$/, /^\/x\/space\/wbi\/acc\/info$/]
+const CACHEABLE = [/^\/x\/web-interface\/(wbi\/)?view$/, /^\/x\/space\/wbi\/acc\/info$/, /^\/x\/tag\/archive\/tags$/]
 const SIGNED_PATHS: Record<string, string> = {
   '/x/web-interface/view': '/x/web-interface/wbi/view',
   '/x/player/playurl': '/x/player/wbi/playurl',
@@ -135,6 +138,22 @@ export async function biliGet<T>(ctx: BiliContext, input: string, opt: GetOption
     writeJsonAtomic(cacheFile(ctx), all)
   }
   return result
+}
+
+/**
+ * 取原始资源（字幕 JSON、弹幕 XML 这类不是 `{ code, data }` 形状的）。
+ * cookie 只发给 *.bilibili.com，CDN（hdslb 等）不带。取不到返回 null；风控暂停照常抛 TrafficError。
+ */
+export async function biliFetchRaw(ctx: BiliContext, input: string): Promise<Buffer | null> {
+  const url = assertBiliUrl(input)
+  const { cookie, ...headers } = biliHeaders(ctx)
+  try {
+    const response = await ctx.guard.fetch(url, { headers: isBiliApiHost(url) ? { ...headers, cookie } : headers })
+    return response.ok ? Buffer.from(await response.arrayBuffer()) : null
+  } catch (e) {
+    if (e instanceof TrafficError) throw e
+    return null
+  }
 }
 
 /** POST 表单到 B 站。csrf 自动放进 body；演练模式下直接拒绝（写类函数应先自行处理演练，这里是第二道保险）。 */

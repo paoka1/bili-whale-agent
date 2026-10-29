@@ -112,11 +112,12 @@ it('凭据不进错误信息', async () => { /* transport 抛错 */ await expect
 - Produces:
   - `getVideo(ctx, bvid): Promise<VideoMeta>`；`type VideoMeta = { bvid; aid: number; title; desc; owner: { mid: string; name: string }; durationSec: number; pubdate: number; stat: { view; danmaku; like; favorite; reply }; tags: string[]; cid: number; coverUrl: string }`
   - `getSubtitles(ctx, bvid): Promise<{ lang: string; lines: { t: number; text: string }[] } | null>`（移植自 `upstream/tools/commands/subtitles.mjs`，非 JSON 响应当作无字幕）
-  - `getDanmakuHotspots(ctx, bvid, opt?: { bucketSec?: number; top?: number }): Promise<{ total: number; effective: number; hotspots: { t: number; count: number; samples: string[] }[] }>`（移植自 `debrief.mjs` 的弹幕热区与刷屏剔除）
-  - `getComments(ctx, bvid, opt?: { sort?: 'hot' | 'time'; limit?: number; maxChars?: number }): Promise<CommentItem[]>`；`type CommentItem = { rpid: string; mid: string; uname: string; text: string; like: number; ctime: number; replies: number }`
+  - `getDanmakuHotspots(ctx, bvid, opt?: { bucketSec?: number; top?: number; subtitleLines?: SubtitleLine[] }): Promise<DanmakuSummary>`；`type DanmakuSummary = { total: number; effective: number; hotspots: { t: number; count: number; samples: string[]; line?: string }[] }`（移植自 `debrief.mjs` 的弹幕热区与刷屏剔除；传入字幕时 `line` 为桶中点对应的字幕）
+  - `getComments(ctx, bvid, opt?: { sort?: 'hot' | 'time'; limit?: number; maxChars?: number }): Promise<CommentItem[]>`；`type CommentItem = { rpid: string; mid: string; uname: string; text: string; like: number; ctime: number; replies: number; tag?: '置顶' | 'UP置顶' }`
+  - Task 2 的 `api.ts` 补充：`biliFetchRaw(ctx, url): Promise<Buffer | null>`（字幕 JSON、弹幕 XML 等原始资源；cookie 只发给 `*.bilibili.com`）；`isFatalBiliError(e): boolean`（`TrafficError` / `LoginExpiredError`，这两种一路抛到调度器，其余失败可降级）；标签接口 `/x/tag/archive/tags` 加入元信息缓存
   - `searchVideos(ctx, keyword, opt?: { order?: 'click' | 'pubdate'; page?: number }): Promise<VideoCard[]>`；`type VideoCard = { bvid; title; author; mid: string; play: number; danmaku: number; durationSec: number; pubdate: number }`（标题去掉 `<em>` 标签）
   - `searchKeywordOf(pref: string): string`；`tokensOf(pref: string): string[]`（逐行移植 `feed.mjs`）
-  - `feed(ctx, opt?: { n?: number; pool?: number }): Promise<{ prefs: string[]; candidates: (VideoCard & { hits: string[] })[] }>`（移植自 `feed.mjs`：前 6 个偏好取搜索词、按词交替 click/pubdate、10 分钟搜索缓存、排除看过 / 评论过 / 收藏过的 BV、去掉自己的视频、低质过滤、按「偏好命中 + 弹幕密度」排序）
+  - `feed(ctx, opt?: { n?: number; pool?: number }): Promise<{ prefs: string[]; candidates: FeedCandidate[] }>`；`type FeedCandidate = VideoCard & { hits: string[]; source: string }`（`source` 为搜索词或「热门」「排行」「关注」）（移植自 `feed.mjs`：前 6 个偏好取搜索词、按词交替 click/pubdate、10 分钟搜索缓存、加上热门 / 排行 / 关注三路、排除看过（两本日记）/ 评论过（`quota.json`）/ 收藏过的 BV、去掉自己的视频、低质过滤、按「弹幕密度 + 偏好命中 + 收藏回流」排序、同类最多 2 条；`quota.json` 损坏时抛错）
   - `briefVideo(ctx, bvid, opt?: { comments?: number }): Promise<VideoBrief>`；`type VideoBrief = { meta: VideoMeta; subtitles: string | null; danmaku: Awaited<ReturnType<typeof getDanmakuHotspots>>; comments: CommentItem[] }`（字幕截断到 6000 字）
 
 - [ ] **Step 1: 写失败测试**
@@ -262,7 +263,7 @@ it('写入计数超过 writeHourly 时 TrafficError', ...)
     - 写：`comment_post({ bvid, message: 1–300 字, share?: { reason, score: 0–20, rank } })`、`reply_owner({ bvid, oid, root, parent, message })`、`reply_draft({ bvid, oid, root, parent, who, src, message })`、`fav({ bvid, reason, kind?, better? })`、`dm_owner({ message, share? })`、`diary_write({ which: 'public'|'private', markdown })`、`log({ kind, target?, note })`
     - `bvid` 一律 `z.string().regex(/^BV[0-9A-Za-z]{10}$/)`；`rpid`/`oid` 为纯数字字符串
   - 按 `kind` 裁剪：`stranger-message` 不提供 `reply_owner`、`comment_post`、`dm_owner`；`owner-message` 不提供 `reply_draft`
-  - 返回给模型的评论、弹幕、字幕、简介、标题、收件箱正文全部经过 `wrapUntrusted`
+  - 返回给模型的评论、弹幕、字幕、简介、标题、收件箱正文全部经过 `wrapUntrusted`；包装前把其中出现的主人昵称（≥2 字）与 mid（≥4 位）替换为「主人昵称·已打码」「主人mid·已打码」（移植自上游 `debrief.mjs` 防「自称主人」的诱饵）
   - `video_deep`：主模型支持图片（`vision.enabled === false`）时用 `toModelOutput` 返回图片；否则调用 `describeImage` 得到文字描述再返回
   - `makeDescribeImage(cfg: AppConfig, secrets: Secrets): ((imagePath: string) => Promise<string>) | undefined`（`vision.ts`，用看图模型生成不超过 800 字的画面描述）
 
