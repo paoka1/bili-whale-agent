@@ -1,4 +1,4 @@
-// 网页密码独立存储；会话只驻留内存，重启后重新登录。
+// 网页密码独立存储；会话存 sessions.json（只存会话令牌的哈希，0600），重启后不用重新登录。
 import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto'
 import fs from 'node:fs'
 import { z } from 'zod'
@@ -38,7 +38,15 @@ export function createAuth(dataDir: string): Auth {
   let code = stored ? '' : String(randomInt(100_000_000)).padStart(8, '0')
   // 监听 0.0.0.0 时，设置前局域网里谁都能猜码；错 10 次就作废，重启后终端会打印新码
   let setupFailures = 0
-  const sessions = new Map<string, Session>()
+  const sessionFile = dataPath(dataDir, 'sessions.json')
+  // 会话文件坏了就当没有：最多是要重新登录，不影响启动
+  const sessions = new Map<string, Session>(Object.entries((() => {
+    try { return z.record(z.string(), z.object({ csrf: z.string(), expiresAt: z.number() })).parse(JSON.parse(fs.readFileSync(sessionFile, 'utf8'))) } catch { return {} }
+  })()))
+  const persist = () => {
+    for (const [key, value] of sessions) if (value.expiresAt <= Date.now()) sessions.delete(key)
+    writeJsonAtomic(sessionFile, Object.fromEntries(sessions), 0o600)
+  }
   const failures = new Map<string, { count: number; nextAt: number }>()
   function savePassword(password: string): void {
     if (password.length < 10 || password.length > 1024) throw new AuthError('密码需要 10–1024 字')
@@ -80,8 +88,8 @@ export function createAuth(dataDir: string): Auth {
       const result = checkPassword(password, ip)
       if (!result.ok) return result
       const session = randomBytes(32).toString('hex'), csrf = randomBytes(32).toString('hex')
-      for (const [key, value] of sessions) if (value.expiresAt <= Date.now()) sessions.delete(key)
       sessions.set(digest(session), { csrf, expiresAt: Date.now() + SESSION_SECONDS * 1000 })
+      persist()
       return { ok: true, session, csrf }
     },
     verify: (session) => Boolean(sessionOf(session)),
@@ -92,8 +100,9 @@ export function createAuth(dataDir: string): Auth {
       savePassword(password)
       sessions.clear()
       sessions.set(digest(session), current)
+      persist()
     },
-    logout: (session) => { sessions.delete(digest(session)) },
-    logoutAll: () => { sessions.clear() },
+    logout: (session) => { sessions.delete(digest(session)); persist() },
+    logoutAll: () => { sessions.clear(); persist() },
   }
 }

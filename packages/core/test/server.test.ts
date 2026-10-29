@@ -232,3 +232,23 @@ it('网页可以解除当前账号的人工暂停，需要 CSRF 并写审计', a
   expect(new Headers(resume.mock.calls[0]![0]).get('cookie')).toContain('SESSDATA=')
   expect(readJsonl<{ action: string }>(path.join(s.dataDir, 'audit.jsonl')).map((e) => e.action)).toContain('traffic-resume')
 })
+
+// 2026-10-29 用户：每次重启服务都要重新登录网页
+it('会话持久化：重启后仍有效，文件里没有会话原文，退出与改密码同步到磁盘', () => {
+  const s = setup()
+  const a = s.auth.login(password, 'test'), b = s.auth.login(password, 'test')
+  if (!a.ok || !b.ok) throw new Error('登录失败')
+  const file = path.join(s.dataDir, 'sessions.json')
+  expect(fs.readFileSync(file, 'utf8')).not.toContain(a.session)
+  if (process.platform !== 'win32') expect(fs.statSync(file).mode & 0o777).toBe(0o600)
+  const restarted = createAuth(s.dataDir)
+  expect(restarted.verify(a.session)).toBe(true)
+  expect(restarted.verifyCsrf(a.session, a.csrf)).toBe(true)
+  restarted.logout(b.session)
+  expect(createAuth(s.dataDir).verify(b.session)).toBe(false)
+  restarted.changePassword('new-password-123', a.session)
+  const again = createAuth(s.dataDir)
+  expect(again.verify(a.session)).toBe(true)
+  again.logoutAll()
+  expect(createAuth(s.dataDir).verify(a.session)).toBe(false)
+})

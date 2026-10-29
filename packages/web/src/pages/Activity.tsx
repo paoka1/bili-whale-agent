@@ -1,15 +1,16 @@
-// 顶部状态 + 立即唤醒；待审草稿；动态时间线；两本日记。每 15 秒刷新一次。
-import { Alert, Anchor, Badge, Button, Group, Loader, Paper, SimpleGrid, Stack, Tabs, Text, Textarea, Timeline, Title, Typography } from '@mantine/core'
+// 顶部状态 + 立即唤醒；她最近的信；待审草稿；动态 / 运行记录 / 两本日记。每 15 秒刷新一次。
+import { Alert, Anchor, Badge, Button, Group, Loader, Paper, SimpleGrid, Spoiler, Stack, Tabs, Text, Textarea, Timeline, Title, Typography } from '@mantine/core'
 import { useCallback, useEffect, useState } from 'react'
-import { api, type Draft, type LogEntry, type Status, type WriteResult } from '../api'
+import { api, type Draft, type LogEntry, type RunRecord, type Status, type WriteResult } from '../api'
 import { Markdown } from '../components/Markdown'
+import { kindOf, RUN_KIND, RUN_STATUS, toolLabel } from '../labels'
 
 /** 按服务器时区显示，作息也按它算 */
 const timeIn = (zone: string, value: number | string, withDate = false) => new Intl.DateTimeFormat('zh-CN', {
   timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false, ...(withDate ? { month: 'numeric', day: 'numeric' } : {}),
 }).format(new Date(value))
 const PAGE = 20 // 动态每次显示的条数，太长翻不到底
-const KIND: Record<string, string> = { wake: '定时醒来', manual: '手动唤醒', 'owner-message': '处理主人消息', 'stranger-message': '处理陌生人消息' }
+const RUN_PAGE = 10
 
 /** 活动里的 BV 号链接到视频页（target 形如 BV1… 或 BV:BV1…） */
 function Target({ value }: { value: string | null }) {
@@ -26,12 +27,15 @@ export function Activity() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [shown, setShown] = useState(PAGE)
+  const [runs, setRuns] = useState<RunRecord[]>([])
+  const [runsShown, setRunsShown] = useState(RUN_PAGE)
 
   const refresh = useCallback(() => {
     Promise.all([
       api<Status>('/api/status').then(setStatus),
       api<Draft[]>('/api/drafts').then(setDrafts),
       api<LogEntry[]>('/api/activity?limit=500').then((rows) => setLog(rows.reverse())),
+      api<RunRecord[]>('/api/runs?limit=200').then((rows) => setRuns(rows.reverse())),
       api<{ public: string; private: string }>('/api/diaries').then(setDiaries),
     ]).then(() => setError('')).catch((e) => setError((e as Error).message))
   }, [])
@@ -56,13 +60,15 @@ export function Activity() {
   if (!status) return error ? <Alert color="red">{error}</Alert> : <Loader />
   const zone = status.timezone
   const { share, favorites, traffic } = status.quota
+  // 醒来写的最后一段话就是给主人的信；处理消息的运行最后只是处理说明，不算信
+  const letter = runs.find((r) => (r.kind === 'wake' || r.kind === 'manual') && r.status === 'ok' && r.finalText.trim())
   return (
     <Stack>
       <Paper withBorder p="md">
         <Group justify="space-between" align="start">
           <Stack gap={4}>
             <Group gap="xs">
-              <Title order={4}>{status.running ? `醒着：${KIND[status.running] ?? status.running}` : '睡着'}</Title>
+              <Title order={4}>{status.running ? `醒着：${RUN_KIND[status.running] ?? status.running}` : '睡着'}</Title>
               {status.dryRun && <Badge color="yellow">演练模式</Badge>}
               {status.queue.length > 0 && <Badge variant="light">排队 {status.queue.length}</Badge>}
             </Group>
@@ -88,6 +94,18 @@ export function Activity() {
       {notice && <Alert color="blue" withCloseButton onClose={() => setNotice('')}>{notice}</Alert>}
       {error && <Alert color="red">{error}</Alert>}
 
+      {letter && (
+        <Paper withBorder p="md">
+          <Group justify="space-between" mb="xs">
+            <Title order={5}>她最近的信</Title>
+            <Text size="xs" c="dimmed">{RUN_KIND[letter.kind] ?? letter.kind} · {timeIn(zone, letter.endedAt, true)}</Text>
+          </Group>
+          <Spoiler maxHeight={180} showLabel="展开" hideLabel="收起">
+            <Typography><Markdown source={letter.finalText} /></Typography>
+          </Spoiler>
+        </Paper>
+      )}
+
       {drafts.length > 0 && (
         <Paper withBorder p="md">
           <Title order={5} mb="sm">待审回复（{drafts.length}）</Title>
@@ -100,6 +118,7 @@ export function Activity() {
         <Tabs defaultValue="log">
           <Tabs.List>
             <Tabs.Tab value="log">动态</Tabs.Tab>
+            <Tabs.Tab value="runs">运行记录</Tabs.Tab>
             <Tabs.Tab value="public">日记</Tabs.Tab>
             <Tabs.Tab value="private">私人日记</Tabs.Tab>
           </Tabs.List>
@@ -107,18 +126,34 @@ export function Activity() {
             {log.length === 0 ? <Text size="sm" c="dimmed">还没有活动</Text> : (
               <>
                 <Timeline bulletSize={12} lineWidth={2}>
-                  {log.slice(0, shown).map((e, i) => (
-                    <Timeline.Item key={i} title={<Group gap="xs"><Text size="sm" fw={500}>{e.kind}</Text><Target value={e.target} /></Group>}>
-                      <Text size="sm" className="pre-line">{e.note}</Text>
-                      <Text size="xs" c="dimmed">{timeIn(zone, e.at, true)}</Text>
-                    </Timeline.Item>
-                  ))}
+                  {log.slice(0, shown).map((e, i) => {
+                    const kind = kindOf(e.kind)
+                    // 系统记录（运行摘要、监听失败等）淡显，不盖过她自己的动态
+                    return (
+                      <Timeline.Item key={i} color={kind.color} opacity={kind.system ? 0.55 : 1}
+                        title={<Group gap="xs"><Badge size="sm" variant="light" color={kind.color}>{kind.label}</Badge>{!kind.system && <Target value={e.target} />}</Group>}>
+                        <Text size={kind.system ? 'xs' : 'sm'} className="pre-line">{e.note}</Text>
+                        <Text size="xs" c="dimmed">{timeIn(zone, e.at, true)}</Text>
+                      </Timeline.Item>
+                    )
+                  })}
                 </Timeline>
                 <Group mt="md" gap="xs">
                   {shown < log.length && <Button size="xs" variant="light" onClick={() => setShown(shown + PAGE)}>再看 {Math.min(PAGE, log.length - shown)} 条（共 {log.length} 条）</Button>}
                   {shown > PAGE && <Button size="xs" variant="subtle" onClick={() => setShown(PAGE)}>收起</Button>}
                 </Group>
               </>
+            )}
+          </Tabs.Panel>
+          <Tabs.Panel value="runs" pt="md">
+            {runs.length === 0 ? <Text size="sm" c="dimmed">还没有运行过</Text> : (
+              <Stack gap="sm">
+                {runs.slice(0, runsShown).map((r) => <RunCard key={r.id} run={r} zone={zone} />)}
+                <Group gap="xs">
+                  {runsShown < runs.length && <Button size="xs" variant="light" onClick={() => setRunsShown(runsShown + RUN_PAGE)}>再看 {Math.min(RUN_PAGE, runs.length - runsShown)} 次（共 {runs.length} 次）</Button>}
+                  {runsShown > RUN_PAGE && <Button size="xs" variant="subtle" onClick={() => setRunsShown(RUN_PAGE)}>收起</Button>}
+                </Group>
+              </Stack>
             )}
           </Tabs.Panel>
           {(['public', 'private'] as const).map((which) => (
@@ -129,6 +164,32 @@ export function Activity() {
         </Tabs>
       </Paper>
     </Stack>
+  )
+}
+
+/** 一次运行：类型、状态、用时、调用了哪些工具（失败的标红）、报错与最后的话 */
+function RunCard({ run, zone }: { run: RunRecord; zone: string }) {
+  const status = RUN_STATUS[run.status] ?? { label: run.status, color: 'gray' }
+  const minutes = Math.max(0, Math.round((Date.parse(run.endedAt) - Date.parse(run.startedAt)) / 6000) / 10)
+  return (
+    <Paper withBorder p="sm">
+      <Group gap="xs">
+        <Text size="sm" fw={500}>{RUN_KIND[run.kind] ?? run.kind}</Text>
+        <Badge size="sm" color={status.color} variant="light">{status.label}</Badge>
+        <Text size="xs" c="dimmed">{timeIn(zone, run.startedAt, true)} · {minutes} 分钟 · {run.steps} 步{run.draftsAdded ? ` · 新草稿 ${run.draftsAdded}` : ''}</Text>
+      </Group>
+      {run.toolCalls.length > 0 && (
+        <Group gap={4} mt={6}>
+          {run.toolCalls.map((t, i) => <Badge key={i} size="xs" variant={t.ok ? 'default' : 'filled'} color={t.ok ? 'gray' : 'red'}>{toolLabel(t.name)}{t.ok ? '' : ' ✗'}</Badge>)}
+        </Group>
+      )}
+      {run.error && <Text size="xs" c="red" mt={6}>{run.error}</Text>}
+      {run.finalText.trim() && (
+        <Spoiler maxHeight={60} showLabel="展开" hideLabel="收起" mt={6}>
+          <Text size="xs" c="dimmed" className="pre-line">{run.finalText}</Text>
+        </Spoiler>
+      )}
+    </Paper>
   )
 }
 

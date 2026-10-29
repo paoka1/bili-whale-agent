@@ -10,8 +10,12 @@ import { BiliAccount } from '../components/BiliAccount'
 const num = (v: string | number) => (v === '' ? 0 : Number(v))
 type Section = Exclude<keyof AppConfig, 'dryRun'>
 
+// 页面很长：顶部一排导航跳到对应分块；scrollMarginTop 让出固定顶栏和导航条的高度
+const SECTIONS = ['模型', 'B 站账号', '主人', '她是谁', '口味', '作息', '分享与推送', '监听', '高级']
+const sectionId = (title: string) => `sec-${SECTIONS.indexOf(title)}`
+
 function Block({ title, children }: { title: string; children: ReactNode }) {
-  return <Paper withBorder p="md"><Stack gap="sm"><Title order={5}>{title}</Title>{children}</Stack></Paper>
+  return <Paper withBorder p="md" id={sectionId(title)} style={{ scrollMarginTop: 120 }}><Stack gap="sm"><Title order={5}>{title}</Title>{children}</Stack></Paper>
 }
 
 export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
@@ -21,6 +25,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
   const [keys, setKeys] = useState({ llmApiKey: '', visionApiKey: '' })
   const [notice, setNotice] = useState<{ color: string; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [advanced, setAdvanced] = useState<string | null>(null)
 
   const load = () => api<ConfigResponse>('/api/config').then((r) => { setData(r); setCfg(r.config); setPersona(r.persona) })
     .catch((e) => setNotice({ color: 'red', text: (e as Error).message }))
@@ -46,8 +51,18 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
     } catch (e) { setNotice({ color: 'red', text: (e as Error).message }) } finally { setSaving(false) }
   }
 
+  const jump = (title: string) => {
+    if (title === '高级') setAdvanced('advanced')
+    document.getElementById(sectionId(title))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   return (
     <Stack pb={80}>
+      <Paper withBorder px="xs" py={6} pos="sticky" top={64} style={{ zIndex: 6, overflowX: 'auto' }}>
+        <Group gap={4} wrap="nowrap">
+          {SECTIONS.map((title) => <Button key={title} size="compact-xs" variant="subtle" onClick={() => jump(title)} style={{ flexShrink: 0 }}>{title}</Button>)}
+        </Group>
+      </Paper>
       <Paper withBorder p="md" bg={cfg.dryRun ? 'yellow.0' : undefined}>
         <Switch size="md" checked={cfg.dryRun} onChange={(e) => setCfg({ ...cfg, dryRun: e.currentTarget.checked })}
           label="演练模式" description="开着时评论、私信、收藏都只记录「本来会发什么」，不真的发到 B 站。确认效果后再关掉。" />
@@ -143,7 +158,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
         <NumberInput label="检查间隔（秒）" min={15} w={200} value={cfg.listen.commentIntervalSec} onChange={(v) => set('listen', { commentIntervalSec: num(v) })} />
       </Block>
 
-      <Accordion variant="contained">
+      <Accordion variant="contained" value={advanced} onChange={setAdvanced} id={sectionId('高级')} style={{ scrollMarginTop: 120 }}>
         <Accordion.Item value="advanced">
           <Accordion.Control>高级</Accordion.Control>
           <Accordion.Panel>

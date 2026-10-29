@@ -66,4 +66,8 @@ export type Status = {
 }
 export type Draft = { id: string; bvid: string; who: string; src: string; message: string; at: string }
 export type LogEntry = { at: string; kind: string; target: string | null; note: string }
-export type WriteResult = { status: 'sent' | 'dry-run' | 'refused'; reason?: string; preview?: string }
+export type RunRecord = {
+  id: string; kind: string; startedAt: string; endedAt: string; status: string; steps: number
+  toolCalls: { name: string; ok: boolean }[]; draftsAdded: number; finalText: string; error?: string
+}
+export type WriteResult ={ status: 'sent' | 'dry-run' | 'refused'; reason?: string; preview?: string }

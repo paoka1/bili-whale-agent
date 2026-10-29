@@ -2,6 +2,14 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
 import { Markdown } from '../src/components/Markdown'
 import { configPayload, plainHttpWarning, type AppConfig } from '../src/api'
+import { kindOf, toolLabel } from '../src/labels'
+
+it('动态类型显示中文，系统记录标为淡显，不认识的原样显示', () => {
+  expect(kindOf('watch').label).toBe('看视频')
+  expect(kindOf('scheduler')).toMatchObject({ label: '系统', system: true })
+  expect(kindOf('看视频').label).toBe('看视频')
+  expect(toolLabel('video_deep')).toBe('深读')
+})
 
 afterEach(cleanup)
 
