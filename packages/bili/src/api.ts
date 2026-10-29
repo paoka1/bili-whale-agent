@@ -70,16 +70,22 @@ export function biliHeaders(ctx: BiliContext): Record<string, string> {
   return { 'user-agent': UA, referer: 'https://www.bilibili.com/', cookie: cookieHeader(ctx.cred) }
 }
 
+/** B 站回复和私信的整数 ID 可超出安全范围；JSON 字符串里的数字保持原样。 */
+export function parseJsonExact(text: string): unknown {
+  return JSON.parse(text.replace(/"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g, (token) => {
+    return /^-?(?:0|[1-9]\d*)$/.test(token) && !Number.isSafeInteger(Number(token)) ? JSON.stringify(token) : token
+  }))
+}
+
 async function parse<T>(response: Response): Promise<BiliResponse<T>> {
   if (!response.ok) return { code: -1, message: `HTTP ${response.status}（B 站风控或接口异常，请稍后重试）` }
   const text = await response.text()
   try {
     // 2026-10-22 上游修复：评论/私信 ID 可能超出安全整数范围，必须保留十进制原值。
-    const data = JSON.parse(text.replace(/"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g, (token) => {
-      return /^-?(?:0|[1-9]\d*)$/.test(token) && !Number.isSafeInteger(Number(token)) ? JSON.stringify(token) : token
-    }))
-    if (!data || typeof data !== 'object') throw new Error('invalid')
-    return { ...data, code: Number(data.code), message: String(data.message ?? '') }
+    const data = parseJsonExact(text)
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('invalid')
+    const body = data as Record<string, unknown>
+    return { ...body, code: Number(body.code), message: String(body.message ?? '') } as BiliResponse<T>
   } catch {
     return { code: -1, message: `非 JSON 响应（HTTP ${response.status}），可能是风控或接口变更` }
   }

@@ -319,6 +319,7 @@ it('工具集里没有任何执行命令或读任意文件的工具', () => { ex
 
 **Interfaces:**
 - Consumes: `runAgent`、`wakePrompt`、`messagePrompt`、`pullInbox`、`pullOwnerDms`、`dmOwner`
+- 评论轮询：`pullInbox` 会跳过时间晚于本机当前时间的条目（服务器时钟慢时），且没有持久化游标。所以下一轮的 `sinceMs` 取「上一轮开始时间 − 5 分钟」，不要取上一轮拿到的最大 `at`；已处理条目按 `kind:id` 去重（存 `inbox-seen.json`，保留最近 500 条）
 - Produces:
   - `makePlan`、`completePlan`、`historyOf`、`isPending`、`occurrences`（签名同上游，加类型）
   - `createScheduler(deps: { dataDir: string; getConfig: () => AppConfig; run: (kind: RunKind, prompt: string) => Promise<RunRecord>; now?: () => number; setTimer?: typeof setTimeout }): Scheduler`；`interface Scheduler { start(): void; stop(): void; wakeNow(): { queued: boolean }; status(): { running: RunKind | null; queue: RunKind[]; nextWakeAt: number | null; nextWindow: string | null; lastRunAt: string | null } }`

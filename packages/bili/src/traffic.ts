@@ -60,6 +60,8 @@ export type TrafficStatus = { readDay: number; writeDay: number; readHour: numbe
 
 export type GuardInit = RequestInit & { waitWriteMs?: number }
 export type Transport = (input: string | URL, init?: RequestInit) => Promise<Response>
+// 扫码登录没有 BiliContext，使用独立的短期挑战、超时和节流；普通业务仍通过 TrafficGuard。
+export const defaultTransport: Transport = (input, init) => globalThis.fetch(input, init)
 
 export interface TrafficGuard {
   fetch(input: string | URL, init?: GuardInit): Promise<Response>
@@ -87,7 +89,7 @@ const MANUAL_CODES = [12015, -105]
 const IGNORED_FIELDS = /^(csrf|csrf_token|wts|w_rid|rnd|timestamp|msg\[timestamp\]|msg\[dev_id\])$/
 
 export function createTrafficGuard(opt: TrafficGuardOptions): TrafficGuard {
-  const transport: Transport = opt.transport ?? ((input, init) => globalThis.fetch(input, init))
+  const transport: Transport = opt.transport ?? defaultTransport
   const now = opt.now ?? Date.now
   const sleep = opt.sleep ?? ((ms: number) => delay(ms).then(() => undefined))
   const stateFile = path.join(opt.dataDir, 'traffic-state.json')

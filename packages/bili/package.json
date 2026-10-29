@@ -15,5 +15,8 @@
   "scripts": {
     "build": "tsc -b",
     "test": "vitest run --maxWorkers=2"
+  },
+  "dependencies": {
+    "qrcode": "1.5.4"
   }
 }
