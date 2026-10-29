@@ -8,6 +8,7 @@ import { Markdown } from '../components/Markdown'
 const timeIn = (zone: string, value: number | string, withDate = false) => new Intl.DateTimeFormat('zh-CN', {
   timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false, ...(withDate ? { month: 'numeric', day: 'numeric' } : {}),
 }).format(new Date(value))
+const PAGE = 20 // 动态每次显示的条数，太长翻不到底
 const KIND: Record<string, string> = { wake: '定时醒来', manual: '手动唤醒', 'owner-message': '处理主人消息', 'stranger-message': '处理陌生人消息' }
 
 /** 活动里的 BV 号链接到视频页（target 形如 BV1… 或 BV:BV1…） */
@@ -24,12 +25,13 @@ export function Activity() {
   const [diaries, setDiaries] = useState<{ public: string; private: string } | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [shown, setShown] = useState(PAGE)
 
   const refresh = useCallback(() => {
     Promise.all([
       api<Status>('/api/status').then(setStatus),
       api<Draft[]>('/api/drafts').then(setDrafts),
-      api<LogEntry[]>('/api/activity?limit=100').then((rows) => setLog(rows.reverse())),
+      api<LogEntry[]>('/api/activity?limit=500').then((rows) => setLog(rows.reverse())),
       api<{ public: string; private: string }>('/api/diaries').then(setDiaries),
     ]).then(() => setError('')).catch((e) => setError((e as Error).message))
   }, [])
@@ -93,35 +95,39 @@ export function Activity() {
         </Paper>
       )}
 
+      {/* 动态和日记放在同一张卡片的分页签里：动态再长也不会把日记挤到页面最底下 */}
       <Paper withBorder p="md">
-        <Title order={5} mb="sm">动态</Title>
-        {log.length === 0 ? <Text size="sm" c="dimmed">还没有活动</Text> : (
-          <Timeline bulletSize={12} lineWidth={2}>
-            {log.map((e, i) => (
-              <Timeline.Item key={i} title={<Group gap="xs"><Text size="sm" fw={500}>{e.kind}</Text><Target value={e.target} /></Group>}>
-                <Text size="sm" className="pre-line">{e.note}</Text>
-                <Text size="xs" c="dimmed">{timeIn(zone, e.at, true)}</Text>
-              </Timeline.Item>
-            ))}
-          </Timeline>
-        )}
+        <Tabs defaultValue="log">
+          <Tabs.List>
+            <Tabs.Tab value="log">动态</Tabs.Tab>
+            <Tabs.Tab value="public">日记</Tabs.Tab>
+            <Tabs.Tab value="private">私人日记</Tabs.Tab>
+          </Tabs.List>
+          <Tabs.Panel value="log" pt="md">
+            {log.length === 0 ? <Text size="sm" c="dimmed">还没有活动</Text> : (
+              <>
+                <Timeline bulletSize={12} lineWidth={2}>
+                  {log.slice(0, shown).map((e, i) => (
+                    <Timeline.Item key={i} title={<Group gap="xs"><Text size="sm" fw={500}>{e.kind}</Text><Target value={e.target} /></Group>}>
+                      <Text size="sm" className="pre-line">{e.note}</Text>
+                      <Text size="xs" c="dimmed">{timeIn(zone, e.at, true)}</Text>
+                    </Timeline.Item>
+                  ))}
+                </Timeline>
+                <Group mt="md" gap="xs">
+                  {shown < log.length && <Button size="xs" variant="light" onClick={() => setShown(shown + PAGE)}>再看 {Math.min(PAGE, log.length - shown)} 条（共 {log.length} 条）</Button>}
+                  {shown > PAGE && <Button size="xs" variant="subtle" onClick={() => setShown(PAGE)}>收起</Button>}
+                </Group>
+              </>
+            )}
+          </Tabs.Panel>
+          {(['public', 'private'] as const).map((which) => (
+            <Tabs.Panel key={which} value={which} pt="md">
+              {diaries?.[which].trim() ? <Typography><Markdown source={diaries[which]} /></Typography> : <Text size="sm" c="dimmed">还没写</Text>}
+            </Tabs.Panel>
+          ))}
+        </Tabs>
       </Paper>
-
-      {diaries && (
-        <Paper withBorder p="md">
-          <Tabs defaultValue="public">
-            <Tabs.List>
-              <Tabs.Tab value="public">日记</Tabs.Tab>
-              <Tabs.Tab value="private">私人日记</Tabs.Tab>
-            </Tabs.List>
-            {(['public', 'private'] as const).map((which) => (
-              <Tabs.Panel key={which} value={which} pt="md">
-                {diaries[which].trim() ? <Typography><Markdown source={diaries[which]} /></Typography> : <Text size="sm" c="dimmed">还没写</Text>}
-              </Tabs.Panel>
-            ))}
-          </Tabs>
-        </Paper>
-      )}
     </Stack>
   )
 }
