@@ -34,9 +34,12 @@ export function normalizeRisk(partial: Partial<Record<keyof RiskSettings, unknow
 export class TrafficError extends Error {
   readonly code = 'BILI_TRAFFIC_PAUSED'
   cooldownMs?: number
-  constructor(message: string) {
+  /** 只拒绝这一次请求（冷却、预算、重复、排队满），账号没有暂停；为 false 时是真的暂停，要人来处理或等退避结束 */
+  readonly refusal: boolean
+  constructor(message: string, opt: { refusal?: boolean } = {}) {
     super(message)
     this.name = 'TrafficError'
+    this.refusal = opt.refusal === true
   }
 }
 
@@ -195,18 +198,18 @@ export function createTrafficGuard(opt: TrafficGuardOptions): TrafficGuard {
             if (item.status !== 'unknown' && item.status !== 'pending' && timestamp - item.at > 86400000) delete s.operations[key]
           }
           if (writing) {
-            if (s.operations[id!]) throw new TrafficError(`相同操作已提交或结果待核查，禁止重复发送；操作 ID：${id}`)
+            if (s.operations[id!]) throw new TrafficError(`相同操作已提交或结果待核查，禁止重复发送；操作 ID：${id}`, { refusal: true })
             if (Object.keys(s.operations).length >= 2000) throw new TrafficError('发送记录已满，请先核查未确认操作')
             const gap = (url.pathname.endsWith('/send_msg') ? cfg.dmGapSec : cfg.writeGapSec) * 1000
             if (a.lastWrite && timestamp - a.lastWrite < gap && !url.pathname.endsWith('/reply/del')) {
-              throw Object.assign(new TrafficError('写操作冷却中，请稍后再发送'), { cooldownMs: a.lastWrite + gap - timestamp })
+              throw Object.assign(new TrafficError('写操作冷却中，请稍后再发送', { refusal: true }), { cooldownMs: a.lastWrite + gap - timestamp })
             }
-            if ((a.writeHour ?? 0) >= cfg.writeHourly || (a.writeDay ?? 0) >= cfg.writeDaily) throw new TrafficError('已达到本地写操作预算，本次不发送')
+            if ((a.writeHour ?? 0) >= cfg.writeHourly || (a.writeDay ?? 0) >= cfg.writeDaily) throw new TrafficError('已达到本地写操作预算，本次不发送', { refusal: true })
           } else if ((a.readHour ?? 0) >= cfg.readHourly || (a.readDay ?? 0) >= cfg.readDaily) {
-            throw new TrafficError('已达到本地读取预算，请等待预算窗口恢复')
+            throw new TrafficError('已达到本地读取预算，请等待预算窗口恢复', { refusal: true })
           }
           const slot = Math.max(timestamp, Number(s.nextAt ?? 0))
-          if (slot - timestamp > 30000) throw new TrafficError('请求队列已满，本次停止')
+          if (slot - timestamp > 30000) throw new TrafficError('请求队列已满，本次停止', { refusal: true })
           s.nextAt = slot + cfg.minGapMs
           if (writing) {
             a.writeHour = (a.writeHour ?? 0) + 1

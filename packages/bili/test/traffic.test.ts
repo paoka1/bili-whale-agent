@@ -82,16 +82,16 @@ it('结果不确定的写操作跨重启保留，忽略易变字段，禁止重�
   await s.guard.resolve(id!, 'not-sent')
   await s.guard.fetch(endpoint, { method: 'POST', headers, body: 'timestamp=3&message=private-text' })
   expect(s.calls()).toBe(1)
-  await expect(s.guard.fetch(endpoint, { method: 'POST', headers, body: 'timestamp=4&message=private-text' })).rejects.toThrow(/重复/)
+  await expect(s.guard.fetch(endpoint, { method: 'POST', headers, body: 'timestamp=4&message=private-text' })).rejects.toMatchObject({ message: expect.stringMatching(/重复/), refusal: true })
 })
 
 it('不同的写操作仍受冷却和每日上限约束', async () => {
   const s = setup({ writeDaily: 2 })
   const send = (text: string) => s.guard.fetch(endpoint, { method: 'POST', headers, body: 'message=' + text })
   await send('one')
-  await expect(send('two')).rejects.toThrow(/冷却/)
+  await expect(send('two')).rejects.toMatchObject({ message: expect.stringMatching(/冷却/), refusal: true })
   s.advance(120001); await send('two')
-  s.advance(120001); await expect(send('three')).rejects.toThrow(/预算/)
+  s.advance(120001); await expect(send('three')).rejects.toMatchObject({ message: expect.stringMatching(/预算/), refusal: true })
   expect(s.calls()).toBe(2)
 })
 

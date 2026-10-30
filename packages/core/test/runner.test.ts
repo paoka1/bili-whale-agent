@@ -65,6 +65,18 @@ it.each([
   expect(bili.readDiaries(s.dataDir).private).toBe('')
 })
 
+it('只拒绝这一次请求的保护错误（预算、重复）交给模型，本轮继续写日记', async () => {
+  const s = fakeBili(() => { throw new bili.TrafficError('已达到本地写操作预算，本次不发送', { refusal: true }) })
+  const model = new MockLanguageModelV4({ doGenerate: [
+    call('comments', { bvid: 'BV1AAAAAAAAA' }), call('diary_write', { which: 'private', markdown: '额度满了，下次再说' }, '2'), text('完成'),
+  ] })
+  const record = await runAgent({ kind: 'wake', prompt: '开始' }, { ctx: s.ctx, cfg, secrets, model })
+  expect(record.status).toBe('ok')
+  expect(record.toolCalls).toEqual([{ name: 'comments', ok: false }, { name: 'diary_write', ok: true }])
+  expect(JSON.stringify(model.doGenerateCalls[1]!.prompt)).toContain('已达到本地写操作预算')
+  expect(bili.readDiaries(s.dataDir).private).toContain('额度满了')
+})
+
 it('取消信号中止运行并记为 timeout', async () => {
   const s = fakeBili(() => undefined)
   const signal = AbortSignal.abort()

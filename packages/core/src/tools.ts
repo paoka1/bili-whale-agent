@@ -4,7 +4,7 @@ import { z } from 'zod'
 import {
   addDraft, addFavorite, appendLog, biliHeaders, briefVideo, captureFrames, dmOwner, feed,
   getComments, getVideo, isFatalBiliError, listFavorites, postComment, pullInbox,
-  readDiaries, readQuota, searchVideos, writeDiary, type BiliContext,
+  readDiaries, readQuota, searchVideos, TrafficError, writeDiary, type BiliContext,
 } from '@bili-whale/bili'
 import { wrapUntrusted } from './untrusted.js'
 
@@ -41,7 +41,8 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
       signal?.throwIfAborted()
       return result
     } catch (e) {
-      if (isFatalBiliError(e) || signal?.aborted) throw e
+      // 只拒绝这一次的保护错误（冷却、预算、重复）不结束本轮：告诉她原因，让她把日记写完
+      if ((isFatalBiliError(e) && !(e instanceof TrafficError && e.refusal)) || signal?.aborted) throw e
       // 原因要交给模型（分清「视频不存在」和「网络失败」）；工具上下文里唯一的密钥是两段 cookie，去掉即可。
       let reason = String((e as Error)?.message ?? '未知错误').slice(0, 300)
       for (const secret of [ctx.cred.sessdata, ctx.cred.bili_jct]) if (secret) reason = reason.split(secret).join('***')

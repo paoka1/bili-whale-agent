@@ -205,7 +205,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       if (e instanceof LoginExpiredError) {
         suspend(ctx)
         await send(cfg, ctx, { title: 'B 站登录失效，请在网页重新扫码', text: '调度已暂停，重新登录后恢复。' })
-      } else if (e instanceof TrafficError) {
+      } else if (e instanceof TrafficError && !e.refusal) {
         // 人工暂停可能持续数小时，只在这轮连续失败的第一次推送，退避重试期间不重复打扰
         if (policy.failures === 1) await send(cfg, ctx, { title: `请求保护已暂停：${e.message}`, text: '监听暂时退避，请检查请求保护状态。' })
       } else {
