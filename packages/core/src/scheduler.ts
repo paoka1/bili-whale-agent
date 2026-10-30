@@ -127,7 +127,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   function promptFor(event: Event): string {
     if (event.items) return messagePrompt(event.kind as 'owner-message' | 'stranger-message', event.items)
     const cfg = getConfig(), plan = event.plan
-    if (plan?.action === 'skip') return `【醒来】本次窗口：${plan.window}。本次跳过看视频，不浏览、收藏或主动分享；先 diary_read 读长期记忆、近期日记和目录，用 diary_append 分别追加本轮公开与私人日记，不重抄历史。结论、待办或往来有变化时用 memory_write 保存完整长期记忆（最多 3000 字），清掉已完成待办，不把猜测写成事实；长期记忆为空时这一轮必须整理一份。再用 log 记录感受，最后写给主人信，由程序推送。`
+    if (plan?.action === 'skip') return `【醒来】本次窗口：${plan.window}。本次跳过看视频，不浏览、收藏或主动分享；先 diary_read 读长期记忆、近期日记和目录，用 diary_append 分别追加本轮公开与私人日记，不重抄历史。结论、待办或往来有变化时用 memory_write 保存完整长期记忆（最多 3000 字），清掉已完成待办，不把猜测写成事实；长期记忆为空时这一轮必须整理一份。再用 log({ kind: 'round', note }) 写一句本轮感受，最后写给主人信，由程序推送。`
     return wakePrompt(cfg, { window: plan?.window ?? '手动唤醒', maxVideos: plan?.maxVideos ?? cfg.night.maxVideos, silenceDays: silenceDays() })
   }
   async function drain(): Promise<void> {

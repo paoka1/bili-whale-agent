@@ -2,7 +2,7 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
 import { Markdown } from '../src/components/Markdown'
 import { configPayload, plainHttpWarning, type AppConfig } from '../src/api'
-import { kindOf, progressText, toolLabel } from '../src/labels'
+import { groupLog, kindOf, progressText, toolLabel } from '../src/labels'
 import { monthCells } from '../src/calendar'
 
 it('动态类型显示中文，系统记录标为淡显，不认识的原样显示', () => {
@@ -58,4 +58,11 @@ it('月历格子从周一开始，月初前补空格', () => {
   expect(cells.slice(0, 4)).toEqual([null, null, null, '2026-10-01']) // 2026-10-01 是周四
   expect(cells.filter(Boolean)).toHaveLength(31)
   expect(cells.at(-1)).toBe('2026-10-31')
+})
+
+it('动态里相邻的同一条记录合并计数，隔开的不合并；round 显示为本轮总结', () => {
+  const e = (at: string, note: string) => ({ at, kind: 'scheduler', target: null, note })
+  const groups = groupLog([e('13:14', '监听失败'), e('13:10', '监听失败'), e('13:07', '监听失败'), e('12:00', '别的'), e('11:00', '监听失败')])
+  expect(groups.map((g) => [g.entry.at, g.count, g.oldestAt])).toEqual([['13:14', 3, '13:07'], ['12:00', 1, '12:00'], ['11:00', 1, '11:00']])
+  expect(kindOf('round').label).toBe('本轮总结')
 })

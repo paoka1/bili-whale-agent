@@ -21,6 +21,8 @@ it('唤醒按配置只提供一种分享路径，最后文字是给主人信', (
   expect(dm).toContain('memory_write')
   expect(dm).toContain('长期记忆为空')
   expect(dm).toMatch(/看过.*BV/)
+  expect(dm).toContain("kind: 'round'")
+  expect(dm).toContain('自动记进动态')
   expect(dm).not.toMatch(/diary_write|整篇/)
   expect(dm).not.toMatch(/DSH|bili\.mjs|--go/)
   cfg.share.via = 'comment'
@@ -43,4 +45,5 @@ it('消息提示保留原楼层坐标，外部正文不能结束包装；陌生�
   expect(owner).toContain('diary_search')
   expect(owner).toContain('diary_append')
   expect(owner).toContain('memory_write')
+  expect(owner).toContain('自动记进动态')
 })

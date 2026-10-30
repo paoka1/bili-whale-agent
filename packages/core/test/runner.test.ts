@@ -94,7 +94,7 @@ it('主模型看图时下一步用 user 图片消息，后续步骤保留图片�
   const imagePath = path.join(s.dataDir, 'frame.jpg')
   const bytes = Buffer.from('ffd8ffe000104a46494600ffd9', 'hex')
   fs.writeFileSync(imagePath, bytes)
-  vi.mocked(bili.briefVideo).mockResolvedValue({ subtitles: '字幕' } as bili.VideoBrief)
+  vi.mocked(bili.briefVideo).mockResolvedValue({ meta: { title: '猫' }, subtitles: '字幕' } as bili.VideoBrief)
   vi.mocked(bili.captureFrames).mockResolvedValue({ ok: true, imagePath, frameTimes: [1] })
   const model = new MockLanguageModelV4({ doGenerate: [call('video_deep', { bvid: 'BV1AAAAAAAAA' }), call('quota_status', {}, 'next'), text('看到猫了')] })
   const record = await runAgent({ kind: 'wake', prompt: '看视频' }, { ctx: s.ctx, cfg: ConfigSchema.parse({ llm: { images: true } }), secrets, model })

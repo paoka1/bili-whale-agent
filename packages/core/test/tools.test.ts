@@ -8,6 +8,7 @@ import { buildTools } from '../src/tools.js'
 import { ConfigSchema } from '../src/config.js'
 import { makeDescribeImage } from '../src/vision.js'
 import { fakeBili, json, viewData } from '../../bili/test/helpers.js'
+import { fakeWrites } from '../../bili/test/write-helpers.js'
 
 vi.mock('@bili-whale/bili', async (original) => ({
   ...await original<typeof import('@bili-whale/bili')>(), captureFrames: vi.fn(), briefVideo: vi.fn(),
@@ -152,6 +153,17 @@ it('主模型看图优先，工具只交回本地路径，模型工具消息仅�
   expect(JSON.stringify(modelOutput)).not.toContain(s.imagePath)
   expect(describeImage).not.toHaveBeenCalled()
   expect(bili.captureFrames).toHaveBeenCalledWith(expect.anything(), BV, { grid: '4x4' })
+})
+
+it('深读、收藏做成时程序立刻记进动态，被拒绝的不记', async () => {
+  const s = imageFixture()
+  await call(buildTools(s.ctx, 'wake', {}), 'video_deep', { bvid: BV })
+  expect(bili.readLog(s.dataDir)).toMatchObject([{ kind: 'watch', target: BV, note: expect.stringMatching(/^深读：/) }])
+  const w = fakeWrites()
+  const tools = buildTools(w.ctx, 'wake', {})
+  expect(await call(tools, 'fav', { bvid: BV, reason: '教程 讲解清楚便于回看' })).toEqual({ status: 'sent' })
+  expect(await call(tools, 'fav', { bvid: BV, reason: '教程 讲解清楚便于回看' })).toMatchObject({ status: 'refused' })
+  expect(bili.readLog(w.dataDir).filter((e) => e.kind === 'fav')).toMatchObject([{ target: BV, note: '教程 讲解清楚便于回看' }])
 })
 
 it('两种看图能力都关闭时不抽帧，仍返回文字资料与跳过原因', async () => {

@@ -5,7 +5,7 @@ import {
   addDraft, addFavorite, appendDiary, appendLog, biliHeaders, briefVideo, captureFrames, dmOwner, feed,
   getComments, getVideo, isFatalBiliError, listFavorites, postComment, pullInbox,
   readDiaryEntry, readDiarySnapshot, readQuota, searchDiaries, searchVideos, TrafficError, writeMemory,
-  APPEND_MAX_BYTES, CATALOG_LIMIT, MEMORY_MAX_CHARS, RECENT_DAYS, SEARCH_LIMIT, type BiliContext,
+  APPEND_MAX_BYTES, CATALOG_LIMIT, MEMORY_MAX_CHARS, RECENT_DAYS, SEARCH_LIMIT, type BiliContext, type WriteResult,
 } from '@bili-whale/bili'
 import { wrapUntrusted } from './untrusted.js'
 
@@ -51,6 +51,12 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
     }
   }
 
+  // 深读、分享、收藏、回复主人做成时立刻记进动态：网页能实时看到，也不靠她最后记得写
+  const done = (c: BiliContext, result: WriteResult, kind: string, target: string | null, note: string): WriteResult => {
+    if (result.status === 'sent') appendLog(c.dataDir, { kind, target, note: Array.from(note).slice(0, 80).join('') })
+    return result
+  }
+
   const tools: ToolSet = {
     feed: tool({
       description: '按口味寻找候选视频，排除已看、评论或收藏过的视频。',
@@ -72,6 +78,7 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
       inputSchema: z.strictObject({ bvid, grid: z.enum(['3x3', '4x4']).optional() }),
       execute: ({ bvid, grid }, { abortSignal }) => run(abortSignal, async (c): Promise<DeepOutput> => {
         const brief = await briefVideo(c, bvid)
+        appendLog(c.dataDir, { kind: 'watch', target: bvid, note: `深读：${brief.meta.title}` })
         if (!deps.imagesToModel && !deps.describeImage) {
           return { text: external('视频深读', { brief, frames: { ok: false, reason: '主模型不能看图且没开看图模型，跳过画面' } }) }
         }
@@ -145,14 +152,15 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
     comment_post: tool({
       description: '发表顶层评论；分享时必须提交理由和评分，工具自动 @ 主人，演练模式只预览。',
       inputSchema: z.strictObject({ bvid, message, share: share.optional() }),
-      execute: (args, { abortSignal }) => run(abortSignal, (c) => postComment(c, args)),
+      execute: (args, { abortSignal }) => run(abortSignal, async (c) =>
+        done(c, await postComment(c, args), args.share ? 'share' : 'comment', args.bvid, `${args.share ? '评论 @ 主人' : '评论'}：${args.message}`)),
     }),
     reply_owner: tool({
       description: '回复原楼层中的主人；作者身份由 B 站回读核实，非主人只能写草稿。',
       inputSchema: z.strictObject({ bvid, oid: id, root: id, parent: id, message }),
       execute: ({ oid, ...args }, { abortSignal }) => run(abortSignal, async (c) => {
         if (String((await getVideo(c, args.bvid)).aid) !== oid) return { status: 'refused', reason: '视频与回复 oid 不一致，停止发送' }
-        return postComment(c, args)
+        return done(c, await postComment(c, args), 'reply_owner', args.bvid, `回主人：${args.message}`)
       }),
     }),
     reply_draft: tool({
@@ -163,12 +171,13 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
     fav: tool({
       description: '收藏值得留存的视频，需要至少 6 字理由；受每日、重复和同类闸门限制。',
       inputSchema: z.strictObject({ bvid, reason: z.string().trim().min(6), kind: z.string().optional(), better: z.boolean().optional() }),
-      execute: (args, { abortSignal }) => run(abortSignal, (c) => addFavorite(c, args)),
+      execute: (args, { abortSignal }) => run(abortSignal, async (c) => done(c, await addFavorite(c, args), 'fav', args.bvid, args.reason)),
     }),
     dm_owner: tool({
       description: '只私信配置中的主人，要求互关；分享视频时必须提交分享评分卡。',
       inputSchema: z.strictObject({ message, share: share.extend({ bvid }).optional() }),
-      execute: (args, { abortSignal }) => run(abortSignal, (c) => dmOwner(c, args)),
+      execute: (args, { abortSignal }) => run(abortSignal, async (c) => done(c, await dmOwner(c, args), args.share ? 'share' : 'reply_owner',
+        args.share?.bvid ?? null, `${args.share ? '私信推给主人' : '私信回主人'}：${args.message}`)),
     }),
     diary_append: tool({
       description: `追加本轮公开或私人日记，正文不超过 ${APPEND_MAX_BYTES / 1024}KB；程序自动加日期标题，正文小节用 ###，不要重抄历史。`,

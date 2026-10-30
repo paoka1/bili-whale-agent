@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, type Diaries, type DiaryView, type Draft, type LogEntry, type RunRecord, type Status, type WriteResult } from '../api'
 import { DiaryCalendar } from '../calendar'
 import { Markdown } from '../components/Markdown'
-import { kindOf, progressText, RUN_KIND, RUN_STATUS, toolLabel } from '../labels'
+import { groupLog, kindOf, progressText, RUN_KIND, RUN_STATUS, toolLabel } from '../labels'
 
 /** 按服务器时区显示，作息也按它算 */
 const timeIn = (zone: string, value: number | string, withDate = false) => new Intl.DateTimeFormat('zh-CN', {
@@ -64,6 +64,7 @@ export function Activity() {
   const zone = status.timezone
   const { share, favorites, traffic } = status.quota
   // 醒来写的最后一段话就是给主人的信；处理消息的运行最后只是处理说明，不算信
+  const groups = groupLog(log)
   const letter = runs.find((r) => (r.kind === 'wake' || r.kind === 'manual') && r.status === 'ok' && r.finalText.trim())
   return (
     <Stack>
@@ -131,20 +132,20 @@ export function Activity() {
             {log.length === 0 ? <Text size="sm" c="dimmed">还没有活动</Text> : (
               <>
                 <Timeline bulletSize={12} lineWidth={2}>
-                  {log.slice(0, shown).map((e, i) => {
+                  {groups.slice(0, shown).map(({ entry: e, count, oldestAt }, i) => {
                     const kind = kindOf(e.kind)
                     // 系统记录（运行摘要、监听失败等）淡显，不盖过她自己的动态
                     return (
                       <Timeline.Item key={i} color={kind.color} opacity={kind.system ? 0.55 : 1}
-                        title={<Group gap="xs"><Badge size="lg" variant="light" color={kind.color}>{kind.label}</Badge>{!kind.system && <Target value={e.target} />}</Group>}>
+                        title={<Group gap="xs"><Badge size="lg" variant="light" color={kind.color}>{kind.label}</Badge>{count > 1 && <Badge size="lg" variant="outline" color="gray">×{count}</Badge>}{!kind.system && <Target value={e.target} />}</Group>}>
                         <Text size={kind.system ? 'sm' : 'md'} className="pre-line">{e.note}</Text>
-                        <Text size="xs" c="dimmed">{timeIn(zone, e.at, true)}</Text>
+                        <Text size="xs" c="dimmed">{count > 1 ? `${timeIn(zone, oldestAt, true)} – ${timeIn(zone, e.at)}` : timeIn(zone, e.at, true)}</Text>
                       </Timeline.Item>
                     )
                   })}
                 </Timeline>
                 <Group mt="md" gap="xs">
-                  {shown < log.length && <Button size="xs" variant="light" onClick={() => setShown(shown + PAGE)}>再看 {Math.min(PAGE, log.length - shown)} 条（共 {log.length} 条）</Button>}
+                  {shown < groups.length && <Button size="xs" variant="light" onClick={() => setShown(shown + PAGE)}>再看 {Math.min(PAGE, groups.length - shown)} 条（共 {groups.length} 条）</Button>}
                   {shown > PAGE && <Button size="xs" variant="subtle" onClick={() => setShown(PAGE)}>收起</Button>}
                 </Group>
               </>
