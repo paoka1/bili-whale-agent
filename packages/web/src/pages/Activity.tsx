@@ -2,6 +2,7 @@
 import { Alert, Anchor, Badge, Button, Group, Loader, Paper, SimpleGrid, Spoiler, Stack, Tabs, Text, Textarea, Timeline, Title, Typography } from '@mantine/core'
 import { useCallback, useEffect, useState } from 'react'
 import { api, type Diaries, type DiaryView, type Draft, type LogEntry, type RunRecord, type Status, type WriteResult } from '../api'
+import { DiaryCalendar } from '../calendar'
 import { Markdown } from '../components/Markdown'
 import { kindOf, progressText, RUN_KIND, RUN_STATUS, toolLabel } from '../labels'
 
@@ -30,6 +31,7 @@ export function Activity() {
   const [shown, setShown] = useState(PAGE)
   const [runs, setRuns] = useState<RunRecord[]>([])
   const [runsShown, setRunsShown] = useState(RUN_PAGE)
+  const [day, setDay] = useState<string | null>(null) // 两本日记共用月历选中的那天
 
   const refresh = useCallback(() => {
     Promise.all([
@@ -161,7 +163,7 @@ export function Activity() {
           </Tabs.Panel>
           {(['public', 'private'] as const).map((which) => (
             <Tabs.Panel key={which} value={which} pt="md">
-              {diaries?.entries[which].some((e) => e.markdown.trim()) ? <DiaryEntries entries={diaries.entries[which]} /> : <Text size="sm" c="dimmed">还没写</Text>}
+              {diaries?.entries[which].some((e) => e.markdown.trim()) ? <DiaryEntries entries={diaries.entries[which]} day={day} onPick={setDay} /> : <Text size="sm" c="dimmed">还没写</Text>}
             </Tabs.Panel>
           ))}
           <Tabs.Panel value="memory" pt="md">
@@ -173,15 +175,25 @@ export function Activity() {
   )
 }
 
-/** 一本日记：本子名等开头文字放最上面，其余按接口给的新到旧顺序逐篇显示，每次 10 篇 */
-function DiaryEntries({ entries }: { entries: DiaryView[] }) {
+/** 一本日记：顶部月历；本子名等开头文字放最上面，其余按接口给的新到旧顺序逐篇显示，每次 10 篇。选了某天只看那天的。 */
+function DiaryEntries({ entries, day, onPick }: { entries: DiaryView[]; day: string | null; onPick: (day: string | null) => void }) {
   const [shown, setShown] = useState(DIARY_PAGE)
   // 第一个二级标题之前的开头（如「# 私人日记」）不是一篇日记，排序会把它放到最后，这里提回顶部
   const heads = entries.filter((e) => !e.markdown.startsWith('## ') && e.markdown.trim())
-  const rest = entries.filter((e) => e.markdown.startsWith('## '))
+  const counts = new Map<string, number>()
+  for (const e of entries) if (e.date) counts.set(e.date, (counts.get(e.date) ?? 0) + 1)
+  // 选了某天时不显示「看过」这类不带日期的清单
+  const rest = entries.filter((e) => e.markdown.startsWith('## ') && (!day || e.date === day))
   return (
     <Stack gap="sm">
       {heads.map((e) => <Typography key={e.id}><Markdown source={e.markdown} /></Typography>)}
+      <DiaryCalendar counts={counts} day={day} onPick={onPick} />
+      {day && (
+        <Group gap="xs">
+          <Text size="sm">{day} · {rest.length ? `${rest.length} 篇` : '这天没写'}</Text>
+          <Button size="compact-sm" variant="light" onClick={() => onPick(null)}>全部</Button>
+        </Group>
+      )}
       {rest.slice(0, shown).map((e) => (
         <Paper key={e.id} withBorder p="sm" className="diary-entry"><Typography><Markdown source={e.markdown} /></Typography></Paper>
       ))}

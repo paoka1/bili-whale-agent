@@ -3,6 +3,7 @@ import { afterEach, expect, it } from 'vitest'
 import { Markdown } from '../src/components/Markdown'
 import { configPayload, plainHttpWarning, type AppConfig } from '../src/api'
 import { kindOf, progressText, toolLabel } from '../src/labels'
+import { monthCells } from '../src/calendar'
 
 it('动态类型显示中文，系统记录标为淡显，不认识的原样显示', () => {
   expect(kindOf('watch').label).toBe('看视频')
@@ -50,4 +51,11 @@ it('运行进度：连续同名工具合并计数，失败的标出来', () => {
 it('分层日记的新工具有中文名，旧的写日记仍能显示', () => {
   expect([toolLabel('diary_append'), toolLabel('memory_write'), toolLabel('diary_search'), toolLabel('diary_write')])
     .toEqual(['追加日记', '整理记忆', '查旧日记', '写日记'])
+})
+
+it('月历格子从周一开始，月初前补空格', () => {
+  const cells = monthCells(2026, 10)
+  expect(cells.slice(0, 4)).toEqual([null, null, null, '2026-10-01']) // 2026-10-01 是周四
+  expect(cells.filter(Boolean)).toHaveLength(31)
+  expect(cells.at(-1)).toBe('2026-10-31')
 })
