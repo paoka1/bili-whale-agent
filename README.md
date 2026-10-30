@@ -62,7 +62,8 @@ npm start -- --host 0.0.0.0 --port 8787
 |---|---|
 | `config.json` | 配置（不含密钥） |
 | `persona.md` | 人设 |
-| `whale-diary.md` / `whale-diary-private.md` | 两本日记 |
+| `whale-diary.md` / `whale-diary-private.md` | 两本日记（只追加；她醒来时只读最近 3 天，旧的靠目录和搜索翻） |
+| `whale-memory.md` | 长期记忆：主人口味、偏好校准、在跟进的待办，最多 3000 字，由她自己整理 |
 | `whale-log.jsonl` / `runs.jsonl` | 活动记录 / 每次运行的结果 |
 | `quota.json`、`favorites.json`、`pending-replies.json` | 分享额度账本、收藏、待审回复 |
 | `traffic-state.json` | 请求保护（风控）状态 |
