@@ -6,6 +6,12 @@
 
 一个独立运行的程序：自带 agent（填任意 OpenAI 兼容接口的 base url / model / key 即可），网页里完成配置、查看她的活动。
 
+![活动页：她最近的信，以及看视频、收藏、分享的动态](docs/images/activity.png)
+
+![日记页：按月历挑一天，只看那天写的日记](docs/images/diary.png)
+
+截图里的视频、日记和信都是演示用的假数据。
+
 ## 需要什么
 
 - Node.js 22 或更新版本
