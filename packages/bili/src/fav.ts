@@ -53,7 +53,7 @@ export async function addFavorite(ctx: BiliContext, opt: FavoriteOptions): Promi
     if (!folder || !Number.isSafeInteger(folder.id) || folder.id <= 0) return refuse('当前账号没有可用的收藏夹，请先在 B 站创建收藏夹')
     const result = await biliPost(ctx, 'https://api.bilibili.com/x/v3/fav/resource/deal', {
       rid: String(meta.aid), type: '2', add_media_ids: String(folder.id), del_media_ids: '',
-    })
+    }, { waitWriteMs: 180000 })
     if (result.code !== 0) return { status: 'refused', reason: `收藏失败：${explainCode(result.code)}` }
     items.push({ bvid: opt.bvid, aid: meta.aid, title: meta.title, up: meta.owner.name, at: new Date(ctx.now()).toISOString(), reason, kind, favId: folder.id })
     writeJsonAtomic(dataPath(ctx.dataDir, 'favorites.json'), { items })

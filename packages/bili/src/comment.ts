@@ -42,7 +42,8 @@ export async function publishComment(ctx: BiliContext, opt: { bvid: string; oid:
     const signed = new URLSearchParams(signWbi({ ...form, csrf: ctx.cred.bili_jct }, wbiKeysFromNav(me.wbi_img), ctx.now()))
     url += `?w_rid=${signed.get('w_rid')}&wts=${signed.get('wts')}`
   }
-  const result = await biliPost<{ rpid?: string | number; rpid_str?: string }>(ctx, url, form)
+  // 同一轮里分享后紧接着回主人或收藏很常见：等写冷却过去再发，而不是让整轮中断
+  const result = await biliPost<{ rpid?: string | number; rpid_str?: string }>(ctx, url, form, { waitWriteMs: 180000 })
   if (result.code !== 0) return { status: 'refused', reason: `评论发送失败：${explainCode(result.code)}` }
   const rpid = String(result.data?.rpid_str ?? result.data?.rpid ?? '')
   recordWrite(ctx, { type: 'comment', target: `BV:${opt.bvid}`, note: opt.message, auto: true, share: opt.share === true })

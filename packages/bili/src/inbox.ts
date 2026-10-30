@@ -21,7 +21,7 @@ async function feedRows(ctx: BiliContext, kind: InboxItem['kind'], pages: number
   let next = new URLSearchParams()
   for (let page = 0; page < pages; page++) {
     const result = await biliGet<FeedPage>(ctx, `https://api.bilibili.com/x/msgfeed/${kind}?platform=web&build=0&mobi_app=web&${next}`)
-    if (result.code !== 0 || !Array.isArray(result.data?.items)) throw new Error(`收件箱读取失败（${kind}，code=${result.code}），请稍后重试`)
+    if (result.code !== 0 || !Array.isArray(result.data?.items)) throw new Error(`收件箱读取失败（${kind}，code=${result.code}：${result.message || '无说明'}），请稍后重试`)
     for (const raw of result.data.items) {
       if (!isObject(raw)) continue
       const id = String(raw.id ?? ''), mid = String(raw.user?.mid ?? '')

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { expect, it } from 'vitest'
 import { postComment } from '../src/comment.js'
+import { addFavorite } from '../src/fav.js'
 import { LoginExpiredError } from '../src/api.js'
 import { readJson } from '../src/store.js'
 import { TrafficError } from '../src/traffic.js'
@@ -161,4 +162,12 @@ it('其他进程持有写锁时拒绝发送，锁释放后可以继续', async (
   fs.unlinkSync(file)
   expect(await postComment(s.ctx, { bvid: BV, message: '正文' })).toMatchObject({ status: 'sent' })
   expect(fs.existsSync(file)).toBe(false)
+})
+
+it('写冷却内接着回主人、收藏：等冷却过去再发，不中断本轮', async () => {
+  const s = fakeWrites({ parentMid: '222' })
+  expect(await postComment(s.ctx, { bvid: BV, message: '这段值得看看', share })).toMatchObject({ status: 'sent' })
+  expect(await postComment(s.ctx, { bvid: BV, root: '9', parent: '9', message: '收到你的建议了' })).toMatchObject({ status: 'sent' })
+  expect(await addFavorite(s.ctx, { bvid: BV, reason: '教程 讲解清楚便于回看' })).toEqual({ status: 'sent' })
+  expect(s.writes()).toHaveLength(3)
 })
