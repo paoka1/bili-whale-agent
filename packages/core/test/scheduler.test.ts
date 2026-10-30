@@ -82,6 +82,34 @@ it('计划到点执行并持久化完成，重启不重复唤醒', async () => {
   expect(s.run).toHaveBeenCalledTimes(1)
 })
 
+it('醒来时一步都没跑就失败（连不上模型）不算醒过：同一窗口十分钟后重试，最多三次', async () => {
+  const config = { night: { windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0 }, listen: { dm: false } }
+  const s = setup(config), file = path.join(s.dataDir, 'whale-night.json')
+  bili.writeJsonAtomic(file, makePlan(ConfigSchema.parse(config).night, {}, Date.now(), () => 0))
+  s.run.mockResolvedValue(record({ kind: 'wake', status: 'failed', steps: 0, error: 'Cannot connect to API' }))
+  s.scheduler.start()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(s.run).toHaveBeenCalledTimes(1)
+  expect(bili.readJson(file, {})).toMatchObject({ wakes: 0, fired: false, retries: 1, atText: '2026-10-21 20:10' })
+  expect(JSON.stringify(bili.readLog(s.dataDir))).toContain('20:10 再试')
+  await vi.advanceTimersByTimeAsync(10 * 60_000)
+  expect(s.run).toHaveBeenCalledTimes(2)
+  await vi.advanceTimersByTimeAsync(30 * 60_000)
+  expect(s.run).toHaveBeenCalledTimes(4)
+  expect(bili.readJson(file, {})).toMatchObject({ wakes: 1, action: 'done' })
+})
+
+it('跑了几步之后才失败照常算醒过，不重试', async () => {
+  const config = { night: { windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0 }, listen: { dm: false } }
+  const s = setup(config), file = path.join(s.dataDir, 'whale-night.json')
+  bili.writeJsonAtomic(file, makePlan(ConfigSchema.parse(config).night, {}, Date.now(), () => 0))
+  s.run.mockResolvedValue(record({ kind: 'wake', status: 'failed', steps: 3, error: '中途出错' }))
+  s.scheduler.start()
+  await vi.advanceTimersByTimeAsync(20 * 60_000)
+  expect(s.run).toHaveBeenCalledTimes(1)
+  expect(bili.readJson(file, {})).toMatchObject({ wakes: 1, action: 'done' })
+})
+
 it('连续定时唤醒只排一个，执行前已过窗口则丢弃', async () => {
   const config = { night: { windows: [{ start: '20:00', end: '20:02', wakes: 2 }], skipChance: 0 }, listen: { dm: false } }
   const s = setup(config), first = deferred<RunRecord>()

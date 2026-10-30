@@ -12,6 +12,7 @@ export type NightState = Partial<NightHistory> & {
   action?: 'wake' | 'skip' | 'done'; done?: boolean; reason?: string; fired?: boolean; woke?: boolean
   atMs?: number; at?: number; atText?: string; window?: string; windowKey?: string
   startsAt?: number; endsAt?: number; withinWindow?: string; maxVideos?: number; createdAt?: string; roll?: string
+  retries?: number
 }
 export type NightPlan = NightHistory & NightState
 
@@ -20,6 +21,10 @@ const stamp = (day: string, minutes: number): number => {
   const date = new Date(`${day}T00:00:00`)
   date.setMinutes(minutes)
   return date.getTime()
+}
+const timeText = (atMs: number): string => {
+  const d = new Date(atMs)
+  return `${dayOf(atMs)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 const parse = (text: string): number => {
   const match = /^(\d{1,2}):(\d{2})$/.exec(text)
@@ -93,14 +98,24 @@ export function makePlan(cfg: NightConfig, state: NightState = {}, now = Date.no
     const atMs = from + Math.floor(random() * Math.max(1, w.endsAt - from))
     const atDate = new Date(atMs), at = atDate.getHours() * 60 + atDate.getMinutes()
     const skip = random() < Math.min(1, Math.max(0, cfg.skipChance ?? 0.3))
-    return { ...history, action: skip ? 'skip' : 'wake', fired: false, atMs, at,
-      atText: `${dayOf(atMs)} ${String(atDate.getHours()).padStart(2, '0')}:${String(atDate.getMinutes()).padStart(2, '0')}`,
+    return { ...history, action: skip ? 'skip' : 'wake', fired: false, atMs, at, atText: timeText(atMs),
       window: w.label, windowKey: w.key, startsAt: w.startsAt, endsAt: w.endsAt,
       withinWindow: `${w.label} 第 ${(history.usedCount[w.key] ?? 0) + 1}/${w.wakes} 次`,
       maxVideos: cfg.maxVideos ?? 5, createdAt: new Date(now).toISOString(),
       ...(skip ? { reason: '本次计划跳过看视频，仍写日记' } : { roll: 'watch' }) }
   }
   return done('今天可用窗口里已经排不下下一次（间隔不够）')
+}
+
+const RETRY_GAP_MS = 10 * 60_000
+export const MAX_RETRIES = 3
+
+/** 醒来时一步都没跑就失败（多半是连不上模型）不算醒过：传入执行前的计划，同一窗口里过一会儿再试；试满或窗口挤不下返回 null，这次照常算用掉。 */
+export function retryPlan(state: NightState, now = Date.now()): NightPlan | null {
+  const retries = (state.retries ?? 0) + 1, atMs = now + RETRY_GAP_MS
+  if (retries > MAX_RETRIES || !Number.isFinite(state.endsAt) || atMs >= state.endsAt! - 30_000) return null
+  const d = new Date(atMs)
+  return { ...state, fired: false, atMs, at: d.getHours() * 60 + d.getMinutes(), atText: timeText(atMs), retries } as NightPlan
 }
 
 export function completePlan(state: NightState, now = Date.now()): NightPlan {

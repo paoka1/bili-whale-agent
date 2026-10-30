@@ -7,7 +7,7 @@ import {
   TrafficError, writeJsonAtomic, type BiliContext, type InboxItem,
 } from '@bili-whale/bili'
 import type { AppConfig } from './config.js'
-import { completePlan, historyOf, isPending, makePlan, type NightState } from './night.js'
+import { completePlan, historyOf, isPending, makePlan, MAX_RETRIES, retryPlan, type NightState } from './night.js'
 import { notify, type Notification } from './notify.js'
 import { messagePrompt, wakePrompt } from './prompts.js'
 import type { RunRecord } from './runner.js'
@@ -36,6 +36,7 @@ const nightState = z.object({
   atText: z.string().optional(), window: z.string().optional(), windowKey: z.string().optional(),
   startsAt: z.number().optional(), endsAt: z.number().optional(), withinWindow: z.string().optional(),
   maxVideos: z.number().int().nonnegative().optional(), createdAt: timestamp.optional(), roll: z.string().optional(),
+  retries: z.number().int().nonnegative().optional(),
 }).refine((s) => s.schema !== 2 || s.fired || s.woke || !['wake', 'skip'].includes(s.action ?? '')
   || (s.atMs !== undefined && s.endsAt !== undefined && !!s.window && !!s.windowKey))
 
@@ -147,6 +148,11 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       if (event.plan) savePlan(completePlan(event.plan, now()))
       const record = await deps.run(event.kind, prompt)
       lastRunAt = record.endedAt
+      const retry = event.plan && record.status === 'failed' && record.steps === 0 ? retryPlan(event.plan, now()) : null
+      if (retry) {
+        savePlan(retry)
+        logFailure(`醒来失败（${(record.error ?? '未知原因').slice(0, 120)}），${retry.atText!.slice(11)} 再试一次（第 ${retry.retries}/${MAX_RETRIES} 次）`)
+      }
       await afterRun(record, ctx)
     } catch (e) {
       if (e instanceof LoginExpiredError && ctx) {
