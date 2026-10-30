@@ -123,12 +123,12 @@
 - Consumes: Task 2 的 `readMemory`、`listEntries`。
 - Produces: `GET /api/diaries` → `{ public: string; private: string; memory: string; entries: { public: DiaryView[]; private: DiaryView[] } }`，`DiaryView = { id: string; date: string | null; title: string; markdown: string }`，各本已按 spec 第 5 节排好。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
   - `server.test.ts`：原 `/api/diaries` 断言改为 `toMatchObject({ public: '', private: '# 私人日记', memory: '' })`，并用 `appendDiary` 追加一条后断言 `entries.private[0].title` 是新条目。
   - `markdown.test.tsx`：`toolLabel('diary_append') === '追加日记'`、`memory_write` → `整理记忆`、`diary_search` → `查旧日记`，`diary_write` 仍为 `写日记`。
-- [ ] **Step 2: 运行确认失败** `npm test -w packages/core -- test/server.test.ts`、`npm test -w packages/web`。
-- [ ] **Step 3: 实现**：路由返回新字段；日记页签按 `entries` 逐条渲染（每条一个小卡片，Markdown 原文渲染）；新增「长期记忆」页签，空时显示「还没整理」；加三个标签。
-- [ ] **Step 4: 运行通过**，并在浏览器里用临时数据目录看一遍：新追加条目在最上面，`看过` 等清单在最后，手机宽度不横向滚动。
+- [x] **Step 2: 运行确认失败** `npm test -w packages/core -- test/server.test.ts`、`npm test -w packages/web`。
+- [x] **Step 3: 实现**：路由返回新字段；日记页签按 `entries` 逐条渲染（每条一个小卡片，Markdown 原文渲染）；新增「长期记忆」页签，空时显示「还没整理」；加三个标签。
+- [x] **Step 4: 运行通过**，并在浏览器里用临时数据目录看一遍：新追加条目在最上面，`看过` 等清单在最后，手机宽度不横向滚动。
 
 ---
 

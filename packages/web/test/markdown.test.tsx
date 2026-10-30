@@ -46,3 +46,8 @@ it('运行进度：连续同名工具合并计数，失败的标出来', () => {
   expect(progressText([{ name: 'diary_read', ok: true }, { name: 'search', ok: true }, { name: 'search', ok: true }, { name: 'video_deep', ok: false }]))
     .toBe('读日记 → 搜索 ×2 → 深读 ✗')
 })
+
+it('分层日记的新工具有中文名，旧的写日记仍能显示', () => {
+  expect([toolLabel('diary_append'), toolLabel('memory_write'), toolLabel('diary_search'), toolLabel('diary_write')])
+    .toEqual(['追加日记', '整理记忆', '查旧日记', '写日记'])
+})

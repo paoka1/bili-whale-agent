@@ -1,7 +1,7 @@
-// 顶部状态 + 立即唤醒；她最近的信；待审草稿；动态 / 运行记录 / 两本日记。每 15 秒刷新一次。
+// 顶部状态 + 立即唤醒；她最近的信；待审草稿；动态 / 运行记录 / 两本日记 / 长期记忆。每 15 秒刷新一次。
 import { Alert, Anchor, Badge, Button, Group, Loader, Paper, SimpleGrid, Spoiler, Stack, Tabs, Text, Textarea, Timeline, Title, Typography } from '@mantine/core'
 import { useCallback, useEffect, useState } from 'react'
-import { api, type Draft, type LogEntry, type RunRecord, type Status, type WriteResult } from '../api'
+import { api, type Diaries, type DiaryView, type Draft, type LogEntry, type RunRecord, type Status, type WriteResult } from '../api'
 import { Markdown } from '../components/Markdown'
 import { kindOf, progressText, RUN_KIND, RUN_STATUS, toolLabel } from '../labels'
 
@@ -11,6 +11,7 @@ const timeIn = (zone: string, value: number | string, withDate = false) => new I
 }).format(new Date(value))
 const PAGE = 20 // 动态每次显示的条数，太长翻不到底
 const RUN_PAGE = 10
+const DIARY_PAGE = 10
 
 /** 活动里的 BV 号链接到视频页（target 形如 BV1… 或 BV:BV1…） */
 function Target({ value }: { value: string | null }) {
@@ -23,7 +24,7 @@ export function Activity() {
   const [status, setStatus] = useState<Status | null>(null)
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [log, setLog] = useState<LogEntry[]>([])
-  const [diaries, setDiaries] = useState<{ public: string; private: string } | null>(null)
+  const [diaries, setDiaries] = useState<Diaries | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [shown, setShown] = useState(PAGE)
@@ -36,7 +37,7 @@ export function Activity() {
       api<Draft[]>('/api/drafts').then(setDrafts),
       api<LogEntry[]>('/api/activity?limit=500').then((rows) => setLog(rows.reverse())),
       api<RunRecord[]>('/api/runs?limit=200').then((rows) => setRuns(rows.reverse())),
-      api<{ public: string; private: string }>('/api/diaries').then(setDiaries),
+      api<Diaries>('/api/diaries').then(setDiaries),
     ]).then(() => setError('')).catch((e) => setError((e as Error).message))
   }, [])
   useEffect(() => {
@@ -122,6 +123,7 @@ export function Activity() {
             <Tabs.Tab value="runs">运行记录</Tabs.Tab>
             <Tabs.Tab value="public">日记</Tabs.Tab>
             <Tabs.Tab value="private">私人日记</Tabs.Tab>
+            <Tabs.Tab value="memory">长期记忆</Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value="log" pt="md">
             {log.length === 0 ? <Text size="sm" c="dimmed">还没有活动</Text> : (
@@ -159,11 +161,34 @@ export function Activity() {
           </Tabs.Panel>
           {(['public', 'private'] as const).map((which) => (
             <Tabs.Panel key={which} value={which} pt="md">
-              {diaries?.[which].trim() ? <Typography><Markdown source={diaries[which]} /></Typography> : <Text size="sm" c="dimmed">还没写</Text>}
+              {diaries?.entries[which].some((e) => e.markdown.trim()) ? <DiaryEntries entries={diaries.entries[which]} /> : <Text size="sm" c="dimmed">还没写</Text>}
             </Tabs.Panel>
           ))}
+          <Tabs.Panel value="memory" pt="md">
+            {diaries?.memory.trim() ? <Typography><Markdown source={diaries.memory} /></Typography> : <Text size="sm" c="dimmed">还没整理</Text>}
+          </Tabs.Panel>
         </Tabs>
       </Paper>
+    </Stack>
+  )
+}
+
+/** 一本日记：本子名等开头文字放最上面，其余按接口给的新到旧顺序逐篇显示，每次 10 篇 */
+function DiaryEntries({ entries }: { entries: DiaryView[] }) {
+  const [shown, setShown] = useState(DIARY_PAGE)
+  // 第一个二级标题之前的开头（如「# 私人日记」）不是一篇日记，排序会把它放到最后，这里提回顶部
+  const heads = entries.filter((e) => !e.markdown.startsWith('## ') && e.markdown.trim())
+  const rest = entries.filter((e) => e.markdown.startsWith('## '))
+  return (
+    <Stack gap="sm">
+      {heads.map((e) => <Typography key={e.id}><Markdown source={e.markdown} /></Typography>)}
+      {rest.slice(0, shown).map((e) => (
+        <Paper key={e.id} withBorder p="sm" className="diary-entry"><Typography><Markdown source={e.markdown} /></Typography></Paper>
+      ))}
+      <Group gap="xs">
+        {shown < rest.length && <Button size="xs" variant="light" onClick={() => setShown(shown + DIARY_PAGE)}>再看 {Math.min(DIARY_PAGE, rest.length - shown)} 篇（共 {rest.length} 篇）</Button>}
+        {shown > DIARY_PAGE && <Button size="xs" variant="subtle" onClick={() => setShown(DIARY_PAGE)}>收起</Button>}
+      </Group>
     </Stack>
   )
 }

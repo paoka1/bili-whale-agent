@@ -4,7 +4,7 @@ import { getConnInfo } from '@hono/node-server/conninfo'
 import { z } from 'zod'
 import {
   approveDraft, biliGet, biliHeaders, dataPath, listDrafts, listFavorites, loadCred, LoginExpiredError,
-  readDiaries, readJsonl, readLog, readQuota, rejectDraft,
+  parseDiary, readDiaries, readJsonl, readLog, readMemory, readQuota, rejectDraft, sortEntries, type DiaryWhich,
 } from '@bili-whale/bili'
 import { loadConfig, readPersona, saveConfig, writePersona } from '../config.js'
 import { loadSecrets, maskSecrets, saveSecrets } from '../secrets.js'
@@ -163,5 +163,10 @@ export function registerRoutes(app: Hono<ServerEnv>, deps: AppDeps): void {
   })
   app.get('/api/activity', (c) => c.json(readLog(dataDir, limit(c))))
   app.get('/api/runs', (c) => { const n = limit(c); return c.json(n === 0 ? [] : readJsonl<RunRecord>(dataPath(dataDir, 'runs.jsonl'), n)) })
-  app.get('/api/diaries', (c) => c.json(readDiaries(dataDir)))
+  app.get('/api/diaries', (c) => {
+    const diaries = readDiaries(dataDir)
+    // 条目按新到旧排好：新篇追加在文件末尾，网页照文件顺序显示就得翻过长清单才看到
+    const view = (which: DiaryWhich) => sortEntries(parseDiary(which, diaries[which])).map(({ id, date, title, markdown }) => ({ id, date, title, markdown }))
+    return c.json({ ...diaries, memory: readMemory(dataDir), entries: { public: view('public'), private: view('private') } })
+  })
 }

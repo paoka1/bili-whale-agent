@@ -55,6 +55,8 @@ export type AppConfig = {
 export type ConfigResponse = { config: AppConfig; secrets: { llmApiKey: boolean; visionApiKey: boolean }; persona: string }
 export type QrState = { id: string; status: 'waiting' | 'scanned' | 'confirmed' | 'expired' | 'failed'; image?: string; account?: { mid: string; name: string }; error?: string; expiresAt: number }
 export type Account = { loggedIn: boolean; mid: string; name: string }
+export type DiaryView = { id: string; date: string | null; title: string; markdown: string }
+export type Diaries = { public: string; private: string; memory: string; entries: Record<'public' | 'private', DiaryView[]> }
 export type Status = {
   running: string | null; progress: { name: string; ok: boolean }[]; queue: string[]; nextWakeAt: number | null; nextWindow: string | null; lastRunAt: string | null
   dryRun: boolean; serverTime: string; timezone: string

@@ -27,6 +27,7 @@ const TOOLS: Record<string, string> = {
   feed: '选题', search: '搜索', video_brief: '看视频', video_deep: '深读', comments: '看评论', inbox: '收件箱',
   diary_read: '读日记', quota_status: '查额度', comment_post: '发评论', reply_owner: '回复主人', reply_draft: '写草稿',
   fav: '收藏', dm_owner: '私信主人', diary_write: '写日记', log: '记录',
+  diary_append: '追加日记', memory_write: '整理记忆', diary_search: '查旧日记',
 }
 export const toolLabel = (name: string) => TOOLS[name] ?? name
 /** 运行中的进度：连续同名工具合并成「搜索 ×4」，失败的加 ✗ */

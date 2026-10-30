@@ -2,3 +2,5 @@
 .markdown table { border-collapse: collapse; }
 .markdown th, .markdown td { border: 1px solid var(--mantine-color-default-border); padding: 4px 8px; }
 .pre-line { white-space: pre-line; }
+/* 日记每篇一张卡片：篇名用小一号的标题，手机上不至于一行只放几个字 */
+.diary-entry h2 { font-size: var(--mantine-h4-font-size); margin-top: 0; }

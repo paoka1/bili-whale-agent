@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
-import { addDraft, appendJsonl, appendLog, QrLogin, readJsonl, saveCred, writeDiary } from '@bili-whale/bili'
+import { addDraft, appendDiary, appendJsonl, appendLog, QrLogin, readJsonl, saveCred, writeDiary, writeMemory } from '@bili-whale/bili'
 import { draftInput, fakeWrites } from '../../bili/test/write-helpers.js'
 import { loadConfig } from '../src/config.js'
 import { loadSecrets, saveSecrets } from '../src/secrets.js'
@@ -190,7 +190,15 @@ it('草稿拒绝与活动、运行、两本日记读取接入现有存储，审�
   appendJsonl(path.join(s.dataDir, 'runs.jsonl'), { id: 'latest' })
   expect(await (await s.request('/api/runs?limit=1', 'GET', undefined, headers)).json()).toEqual([{ id: 'latest' }])
   writeDiary(s.dataDir, 'private', '# 私人日记')
-  expect(await (await s.request('/api/diaries', 'GET', undefined, headers)).json()).toEqual({ public: '', private: '# 私人日记' })
+  appendDiary(s.dataDir, 'private', '新的一篇', Date.now())
+  writeMemory(s.dataDir, '主人喜欢猫')
+  const diaries = await (await s.request('/api/diaries', 'GET', undefined, headers)).json()
+  expect(diaries).toMatchObject({ public: '', private: expect.stringContaining('新的一篇'), memory: '主人喜欢猫', entries: { public: [] } })
+  // 追加在文件末尾的新条目排最前；网页只拿展示要的字段
+  expect(diaries.entries.private).toEqual([
+    { id: 'private:1', date: expect.any(String), title: expect.stringMatching(/^\d{2}:\d{2}$/), markdown: expect.stringContaining('新的一篇') },
+    { id: 'private:0', date: null, title: '# 私人日记', markdown: '# 私人日记\n\n' },
+  ])
   const audit = readJsonl(path.join(s.dataDir, 'audit.jsonl'))
   expect(audit).toContainEqual(expect.objectContaining({ action: 'draft-reject', target: draft.id }))
   expect(JSON.stringify(audit)).not.toContain('私密审核理由')
