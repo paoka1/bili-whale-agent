@@ -56,7 +56,7 @@ export type ConfigResponse = { config: AppConfig; secrets: { llmApiKey: boolean;
 export type QrState = { id: string; status: 'waiting' | 'scanned' | 'confirmed' | 'expired' | 'failed'; image?: string; account?: { mid: string; name: string }; error?: string; expiresAt: number }
 export type Account = { loggedIn: boolean; mid: string; name: string }
 export type Status = {
-  running: string | null; queue: string[]; nextWakeAt: number | null; nextWindow: string | null; lastRunAt: string | null
+  running: string | null; progress: { name: string; ok: boolean }[]; queue: string[]; nextWakeAt: number | null; nextWindow: string | null; lastRunAt: string | null
   dryRun: boolean; serverTime: string; timezone: string
   quota: {
     share: { used: number; configuredDaily: number; enabled: boolean }

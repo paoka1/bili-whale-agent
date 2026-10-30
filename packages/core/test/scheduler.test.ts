@@ -26,7 +26,7 @@ const deferred = <T>() => { let resolve!: (value: T) => void; const promise = ne
 function setup(patch: unknown = {}) {
   let config = ConfigSchema.parse({ night: { windows: [{ start: '20:00', end: '24:00', wakes: 0 }] }, listen: { dm: false }, ...patch as object })
   const s = fakeBili(() => undefined)
-  const run = vi.fn(async (_kind: RunKind, _prompt: string) => record())
+  const run = vi.fn(async (_kind: RunKind, _prompt: string, _onToolCall?: (call: { name: string; ok: boolean }) => void) => record())
   const scheduler = createScheduler({ dataDir: s.dataDir, getConfig: () => config, getCtx: () => ({ ...s.ctx, settings: config, now: Date.now }), run, now: Date.now })
   schedulers.push(scheduler)
   return { ...s, run, scheduler, setConfig: (value: unknown) => { config = ConfigSchema.parse(value) } }
@@ -45,6 +45,16 @@ it('运行中手动唤醒排队，重复同类只排一个且从不并发', asyn
   await vi.advanceTimersByTimeAsync(0)
   expect(s.run).toHaveBeenCalledTimes(2)
   expect(s.scheduler.status()).toMatchObject({ running: null, queue: [], lastRunAt: expect.any(String) })
+})
+
+it('运行中的状态带上已调用的工具，跑完清空', async () => {
+  const s = setup(), done = deferred<RunRecord>()
+  s.run.mockImplementationOnce((_kind, _prompt, onToolCall) => { onToolCall?.({ name: 'diary_read', ok: true }); onToolCall?.({ name: 'search', ok: false }); return done.promise })
+  s.scheduler.wakeNow()
+  expect(s.scheduler.status().progress).toEqual([{ name: 'diary_read', ok: true }, { name: 'search', ok: false }])
+  done.resolve(record())
+  await vi.advanceTimersByTimeAsync(0)
+  expect(s.scheduler.status().progress).toEqual([])
 })
 
 it('同类消息排队时合并正文，主人与陌生人分开处理', async () => {
@@ -72,7 +82,7 @@ it('计划到点执行并持久化完成，重启不重复唤醒', async () => {
   // 计划在 start 时加载，允许构造之后再落盘。
   s.scheduler.start()
   await vi.advanceTimersByTimeAsync(0)
-  expect(s.run).toHaveBeenCalledWith('wake', expect.stringContaining('20:00–24:00'))
+  expect(s.run).toHaveBeenCalledWith('wake', expect.stringContaining('20:00–24:00'), expect.any(Function))
   expect(bili.readJson(path.join(s.dataDir, 'whale-night.json'), {})).toMatchObject({ wakes: 1 })
   s.scheduler.stop()
   const restarted = createScheduler({ dataDir: s.dataDir, getConfig: () => ConfigSchema.parse(config), getCtx: () => s.ctx, run: s.run })
@@ -130,7 +140,7 @@ it('跳过看视频仍唤醒写日记，且不要求浏览与分享', async () =
   bili.writeJsonAtomic(path.join(s.dataDir, 'whale-night.json'), makePlan(ConfigSchema.parse(config).night, {}, Date.now(), () => 0))
   s.scheduler.start()
   await vi.advanceTimersByTimeAsync(0)
-  expect(s.run).toHaveBeenCalledWith('wake', expect.stringContaining('本次跳过看视频'))
+  expect(s.run).toHaveBeenCalledWith('wake', expect.stringContaining('本次跳过看视频'), expect.any(Function))
 })
 
 it('评论监听失败间隔翻倍，成功后恢复基础间隔', async () => {

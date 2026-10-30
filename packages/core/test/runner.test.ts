@@ -32,8 +32,11 @@ it('工具调用后收尾，运行记录与摘要落盘，人设进入系统消�
 it('一直调用工具也在第 40 步停止', async () => {
   const s = fakeBili(() => undefined)
   const model = new MockLanguageModelV4({ doGenerate: async () => call('quota_status', {}, String(model.doGenerateCalls.length)) })
-  const record = await runAgent({ kind: 'manual', prompt: '继续' }, { ctx: s.ctx, cfg, secrets, model })
+  const onToolCall = vi.fn()
+  const record = await runAgent({ kind: 'manual', prompt: '继续' }, { ctx: s.ctx, cfg, secrets, model, onToolCall })
   expect(record).toMatchObject({ status: 'ok', steps: 40 })
+  expect(onToolCall).toHaveBeenCalledTimes(40)
+  expect(onToolCall).toHaveBeenLastCalledWith({ name: 'quota_status', ok: true })
   expect(record.toolCalls).toHaveLength(40)
   expect(model.doGenerateCalls).toHaveLength(40)
 })

@@ -46,7 +46,7 @@ export async function startService(opt: { dataDir: string; host?: string; port?:
   const shutdown = new AbortController()
   const scheduler = createScheduler({
     dataDir, getConfig: () => loadConfig(dataDir), getCtx,
-    run: (kind, prompt) => runAgent({ kind, prompt }, { ctx: getCtx(), cfg: loadConfig(dataDir), secrets: loadSecrets(dataDir), signal: shutdown.signal }),
+    run: (kind, prompt, onToolCall) => runAgent({ kind, prompt }, { ctx: getCtx(), cfg: loadConfig(dataDir), secrets: loadSecrets(dataDir), signal: shutdown.signal, onToolCall }),
   })
   // 扫码成功：保存凭据，并把登录的账号记为「她自己」，写操作会核对当前登录的就是这个号
   const qr = new QrLogin({ save: async (cred, account) => { saveCred(dataDir, cred); saveConfig(dataDir, { self: account }) } })

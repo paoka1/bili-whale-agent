@@ -2,7 +2,7 @@ import { cleanup, render } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
 import { Markdown } from '../src/components/Markdown'
 import { configPayload, plainHttpWarning, type AppConfig } from '../src/api'
-import { kindOf, toolLabel } from '../src/labels'
+import { kindOf, progressText, toolLabel } from '../src/labels'
 
 it('动态类型显示中文，系统记录标为淡显，不认识的原样显示', () => {
   expect(kindOf('watch').label).toBe('看视频')
@@ -40,4 +40,9 @@ it.each([
   ['https:', 'example.com', false],
 ])('明文传输提示：%s//%s → %s', (protocol, hostname, expected) => {
   expect(plainHttpWarning({ protocol, hostname })).toBe(expected)
+})
+
+it('运行进度：连续同名工具合并计数，失败的标出来', () => {
+  expect(progressText([{ name: 'diary_read', ok: true }, { name: 'search', ok: true }, { name: 'search', ok: true }, { name: 'video_deep', ok: false }]))
+    .toBe('读日记 → 搜索 ×2 → 深读 ✗')
 })

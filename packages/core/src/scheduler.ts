@@ -10,17 +10,17 @@ import type { AppConfig } from './config.js'
 import { completePlan, historyOf, isPending, makePlan, MAX_RETRIES, retryPlan, type NightState } from './night.js'
 import { notify, type Notification } from './notify.js'
 import { messagePrompt, wakePrompt } from './prompts.js'
-import type { RunRecord } from './runner.js'
+import type { RunRecord, ToolCallRecord } from './runner.js'
 import type { RunKind } from './tools.js'
 
 export interface Scheduler {
   start(): void
   stop(): void
   wakeNow(): { queued: boolean }
-  status(): { running: RunKind | null; queue: RunKind[]; nextWakeAt: number | null; nextWindow: string | null; lastRunAt: string | null }
+  status(): { running: RunKind | null; progress: ToolCallRecord[]; queue: RunKind[]; nextWakeAt: number | null; nextWindow: string | null; lastRunAt: string | null }
 }
 export type SchedulerDeps = {
-  dataDir: string; getConfig: () => AppConfig; run: (kind: RunKind, prompt: string) => Promise<RunRecord>
+  dataDir: string; getConfig: () => AppConfig; run: (kind: RunKind, prompt: string, onToolCall?: (call: ToolCallRecord) => void) => Promise<RunRecord>
   now?: () => number; setTimer?: typeof setTimeout
   // 服务可复用 agent 的上下文；未提供时从配置与凭据文件创建，保持计划中的最小调用接口。
   getCtx?: () => BiliContext
@@ -66,7 +66,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   const getCtx = deps.getCtx ?? (() => ({ dataDir, settings: getConfig(), cred: loadCred(dataDir) ?? { sessdata: '', bili_jct: '' }, guard, dryRun: getConfig().dryRun, now }))
   const fingerprint = (ctx: BiliContext) => createHash('sha256').update(JSON.stringify(ctx.cred)).digest('hex')
   let active = false, stopped = false, generation = 0, timer: ReturnType<typeof setTimeout> | undefined
-  let running: RunKind | null = null, lastRunAt: string | null = null, invalidLogin: string | null = null
+  let running: RunKind | null = null, progress: ToolCallRecord[] = [], lastRunAt: string | null = null, invalidLogin: string | null = null
   let state: NightState = {}, nightConfig = '', loaded = false
   let seen = new Set<string>(), lastCommentStart = Math.max(0, now() - 24 * 60 * 60_000)
   const queue: Event[] = [], comment: Poll = { nextAt: 0, failures: 0, busy: false, config: '' }, dm: Poll = { nextAt: 0, failures: 0, busy: false, config: '' }
@@ -147,7 +147,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       const prompt = promptFor(event)
       // 先落盘再交付，重启不会再次投递同一计划；排队本身不消耗机会。
       if (event.plan) savePlan(completePlan(event.plan, now()))
-      const record = await deps.run(event.kind, prompt)
+      const record = await deps.run(event.kind, prompt, (call) => progress.push(call))
       lastRunAt = record.endedAt
       const retry = event.plan && record.status === 'failed' && record.steps === 0 ? retryPlan(event.plan, now()) : null
       if (retry) {
@@ -162,6 +162,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       } else logFailure('运行未完成，请检查运行记录、配置与本地状态')
     } finally {
       running = null
+      progress = []
       if (loaded && !stopped) {
         try { refreshPlan() } catch { logFailure('作息计划更新失败，请检查 whale-night.json 与配置') }
       }
@@ -263,7 +264,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     },
     status() {
       const pending = !stopped && !suspended() && isPending(state, now())
-      return { running, queue: queue.map((event) => event.kind), nextWakeAt: pending ? state.atMs! : null,
+      return { running, progress: [...progress], queue: queue.map((event) => event.kind), nextWakeAt: pending ? state.atMs! : null,
         nextWindow: pending ? state.window ?? null : null, lastRunAt }
     },
   }

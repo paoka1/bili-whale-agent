@@ -3,7 +3,7 @@ import { Alert, Anchor, Badge, Button, Group, Loader, Paper, SimpleGrid, Spoiler
 import { useCallback, useEffect, useState } from 'react'
 import { api, type Draft, type LogEntry, type RunRecord, type Status, type WriteResult } from '../api'
 import { Markdown } from '../components/Markdown'
-import { kindOf, RUN_KIND, RUN_STATUS, toolLabel } from '../labels'
+import { kindOf, progressText, RUN_KIND, RUN_STATUS, toolLabel } from '../labels'
 
 /** 按服务器时区显示，作息也按它算 */
 const timeIn = (zone: string, value: number | string, withDate = false) => new Intl.DateTimeFormat('zh-CN', {
@@ -72,6 +72,7 @@ export function Activity() {
               {status.dryRun && <Badge size="lg" color="yellow">演练模式</Badge>}
               {status.queue.length > 0 && <Badge size="lg" variant="light">排队 {status.queue.length}</Badge>}
             </Group>
+            {status.running && <Text size="sm">{status.progress.length ? `已做：${progressText(status.progress)}` : '刚醒，还没开始用工具'}</Text>}
             <Text size="sm" c="dimmed">服务器时间 {timeIn(zone, status.serverTime)}（{zone}）</Text>
             <Text size="sm">下次醒来：{status.nextWakeAt ? `${timeIn(zone, status.nextWakeAt, true)}（${status.nextWindow}）` : '今天没有了'}</Text>
             {status.lastRunAt && <Text size="sm">上次醒来：{timeIn(zone, status.lastRunAt, true)}</Text>}
@@ -185,7 +186,7 @@ function RunCard({ run, zone }: { run: RunRecord; zone: string }) {
       )}
       {run.error && <Text size="xs" c="red" mt={6}>{run.error}</Text>}
       {run.finalText.trim() && (
-        <Spoiler maxHeight={72} showLabel="展开" hideLabel="收起" mt={6}>
+        <Spoiler maxHeight={200} showLabel="展开" hideLabel="收起" mt={6}>
           <Text size="sm" c="dimmed" className="pre-line">{run.finalText}</Text>
         </Spoiler>
       )}

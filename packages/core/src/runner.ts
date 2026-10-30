@@ -10,14 +10,17 @@ import type { Secrets } from './secrets.js'
 import { buildTools, type DeepOutput, type RunKind } from './tools.js'
 import { makeDescribeImage } from './vision.js'
 
+export type ToolCallRecord = { name: string; ok: boolean }
 export type RunRecord = {
   id: string; kind: RunKind; startedAt: string; endedAt: string
   status: 'ok' | 'failed' | 'timeout' | 'paused' | 'login-expired'
-  steps: number; toolCalls: { name: string; ok: boolean }[]; draftsAdded: number; finalText: string; error?: string
+  steps: number; toolCalls: ToolCallRecord[]; draftsAdded: number; finalText: string; error?: string
 }
 
 export async function runAgent(input: { kind: RunKind; prompt: string }, deps: {
   ctx: BiliContext; cfg: AppConfig; secrets: Secrets; model?: LanguageModel; signal?: AbortSignal
+  /** 每个工具调用结束时回报，网页据此显示运行中的进度 */
+  onToolCall?: (call: ToolCallRecord) => void
 }): Promise<RunRecord> {
   const { ctx, cfg, secrets } = deps
   const record: RunRecord = { id: randomUUID(), kind: input.kind, startedAt: new Date(ctx.now()).toISOString(), endedAt: '', status: 'ok', steps: 0, toolCalls: [], draftsAdded: 0, finalText: '' }
@@ -62,6 +65,7 @@ export async function runAgent(input: { kind: RunKind; prompt: string }, deps: {
         const failed = toolOutput.type === 'tool-error'
         const output = failed ? undefined : toolOutput.output as { status?: string; ok?: boolean } | undefined
         record.toolCalls.push({ name: toolCall.toolName, ok: !failed && output?.status !== 'refused' && output?.ok !== false })
+        deps.onToolCall?.(record.toolCalls.at(-1)!)
         if (failed && (toolOutput.error instanceof TrafficError || toolOutput.error instanceof LoginExpiredError)) fatal.abort(toolOutput.error)
       },
       onStepEnd: (step) => { record.steps++; record.finalText = step.text },

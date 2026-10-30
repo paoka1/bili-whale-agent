@@ -29,3 +29,13 @@ const TOOLS: Record<string, string> = {
   fav: '收藏', dm_owner: '私信主人', diary_write: '写日记', log: '记录',
 }
 export const toolLabel = (name: string) => TOOLS[name] ?? name
+/** 运行中的进度：连续同名工具合并成「搜索 ×4」，失败的加 ✗ */
+export function progressText(calls: { name: string; ok: boolean }[]): string {
+  const groups: { name: string; ok: boolean; n: number }[] = []
+  for (const c of calls) {
+    const last = groups.at(-1)
+    if (last && last.name === c.name && last.ok === c.ok) last.n++
+    else groups.push({ ...c, n: 1 })
+  }
+  return groups.map((g) => `${toolLabel(g.name)}${g.n > 1 ? ` ×${g.n}` : ''}${g.ok ? '' : ' ✗'}`).join(' → ')
+}
