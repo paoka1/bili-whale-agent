@@ -56,7 +56,7 @@ export function pollDelay(baseSeconds: number, failureRounds = 0): number {
 }
 
 type Message = InboxItem | { text: string }
-type Event = { kind: RunKind; items?: Message[]; plan?: NightState }
+type Event = { kind: RunKind; items?: Message[]; plan?: NightState; dmChecked?: boolean }
 type Poll = { nextAt: number; failures: number; busy: boolean; config: string }
 
 export function createScheduler(deps: SchedulerDeps): Scheduler {
@@ -140,6 +140,14 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       void drain()
       return
     }
+    // 私信监听关着时，醒来前先看一次主人私信：有新私信就排在本轮前面先处理
+    if ((event.kind === 'wake' || event.kind === 'manual') && !event.dmChecked && !getConfig().listen.dm && getConfig().owner.mid) {
+      queue.unshift({ ...event, dmChecked: true })
+      running = event.kind
+      try { await poll('dm', getCtx(), generation, true) } catch { logFailure('监听检查失败，请检查配置与本地状态') } finally { running = null }
+      void drain()
+      return
+    }
     running = event.kind
     let ctx: BiliContext | undefined
     try {
@@ -155,7 +163,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         logFailure(`醒来失败（${(record.error ?? '未知原因').slice(0, 120)}），${retry.atText!.slice(11)} 再试一次（第 ${retry.retries}/${MAX_RETRIES} 次）`)
       }
       await afterRun(record, ctx)
-      // 私信监听关着时，醒来后看一次主人私信，和评论留到醒来时看保持一致
+      // 跑完再看一次，接住她醒着这几分钟里新来的私信
       if ((event.kind === 'wake' || event.kind === 'manual') && record.status === 'ok' && !getConfig().listen.dm) await poll('dm', ctx, generation, true)
     } catch (e) {
       if (e instanceof LoginExpiredError && ctx) {
@@ -171,14 +179,18 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       void drain()
     }
   }
-  function enqueue(event: Event): void {
+  /** first：插到队首（醒来前后看到的主人私信先于排着的醒来处理） */
+  function enqueue(event: Event, first = false): void {
     const existing = queue.find((item) => item.kind === event.kind)
-    if (existing) {
-      if (event.items) existing.items = [...existing.items ?? [], ...event.items]
-    } else queue.push(event)
+    if (existing && event.items) existing.items = [...existing.items ?? [], ...event.items]
+    const target = existing ?? event
+    if (first) {
+      if (existing) queue.splice(queue.indexOf(existing), 1)
+      queue.unshift(target)
+    } else if (!existing) queue.push(event)
     void drain()
   }
-  /** awake：醒来后顺便看一次，不受监听开关和轮询间隔限制 */
+  /** awake：醒来前后顺便看一次，不受监听开关和轮询间隔限制 */
   async function poll(source: 'comment' | 'dm', ctx: BiliContext, token: number, awake = false): Promise<void> {
     const cfg = getConfig(), policy = source === 'comment' ? comment : dm
     if (policy.busy) return
@@ -207,7 +219,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         // 私信模块内部已合并持久化游标；这里只传首次基线，不另存第二份已读状态。
         const result = await pullOwnerDms(ctx, { baseline: false, lastSeq: null })
         if (!active || token !== generation || (!awake && !getConfig().listen.dm) || suspended()) return
-        if (result.messages.length) enqueue({ kind: 'owner-message', items: result.messages })
+        if (result.messages.length) enqueue({ kind: 'owner-message', items: result.messages }, awake)
       }
       policy.failures = 0
     } catch (e) {
