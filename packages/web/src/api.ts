@@ -31,6 +31,10 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
 export const plainHttpWarning = (loc: { protocol: string; hostname: string }) =>
   loc.protocol === 'http:' && !['localhost', '127.0.0.1', '[::1]'].includes(loc.hostname)
 
+/** 监听每天大约读几次：私信每次 1 次，评论至少 2 次（回复、@ 各一次）；间隔和调度器一样不低于 15 秒 */
+export const listenReadsPerDay = (listen: AppConfig['listen']) =>
+  Math.round(86400 / Math.max(15, listen.commentIntervalSec) * ((listen.dm ? 1 : 0) + (listen.comment ? 2 : 0)))
+
 /** 保存时不带 self：它由扫码登录写入，页面里那份可能是扫码前的旧值 */
 export const configPayload = (cfg: AppConfig) => ({ ...cfg, self: undefined })
 

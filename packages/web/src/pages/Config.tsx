@@ -4,7 +4,7 @@ import {
   SegmentedControl, Select, SimpleGrid, Stack, Switch, TagsInput, Text, Textarea, TextInput, Title,
 } from '@mantine/core'
 import { useEffect, useState, type ReactNode } from 'react'
-import { api, configPayload, type AppConfig, type ConfigResponse } from '../api'
+import { api, configPayload, listenReadsPerDay, type AppConfig, type ConfigResponse } from '../api'
 import { BiliAccount } from '../components/BiliAccount'
 
 const num = (v: string | number) => (v === '' ? 0 : Number(v))
@@ -13,6 +13,8 @@ type Section = Exclude<keyof AppConfig, 'dryRun'>
 // 页面很长：顶部一排导航跳到对应分块；scrollMarginTop 让出固定顶栏和导航条的高度
 const SECTIONS = ['模型', 'B 站账号', '主人', '她是谁', '口味', '作息', '分享与推送', '监听', '高级']
 const sectionId = (title: string) => `sec-${SECTIONS.indexOf(title)}`
+// 监听间隔按分钟给几档；存的仍是秒数，字段名沿用 commentIntervalSec，私信监听也用它
+const INTERVALS = [1, 3, 5, 10].map((m) => ({ value: String(m * 60), label: `${m} 分钟` }))
 
 function Block({ title, children }: { title: string; children: ReactNode }) {
   return <Paper withBorder p="md" id={sectionId(title)} style={{ scrollMarginTop: 120 }}><Stack gap="sm"><Title order={5}>{title}</Title>{children}</Stack></Paper>
@@ -36,6 +38,14 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
   const windows = cfg.night.windows
   const setWindow = (i: number, patch: Partial<AppConfig['night']['windows'][number]>) =>
     set('night', { windows: windows.map((w, j) => (j === i ? { ...w, ...patch } : w)) })
+  const interval = cfg.listen.commentIntervalSec
+  const listening = cfg.listen.dm || cfg.listen.comment
+  const reads = listenReadsPerDay(cfg.listen)
+  const listenHint = !listening ? '两项都关着，不检查。' : [
+    INTERVALS.some((o) => o.value === String(interval)) ? '' : `当前是自定义的 ${interval} 秒，选一档会替换它。`,
+    `有新消息最慢约 ${interval % 60 ? `${interval} 秒` : `${interval / 60} 分钟`}处理；监听每天约读 ${reads} 次`,
+    cfg.risk.readDaily > 0 ? `，占每日读取上限 ${cfg.risk.readDaily} 次的 ${Math.round(reads / cfg.risk.readDaily * 100)}%。` : '。',
+  ].join('')
 
   const save = async () => {
     setSaving(true)
@@ -158,9 +168,14 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
       </Block>
 
       <Block title="监听">
-        <Switch label="有人回复或 @ 她时叫醒她" description="新号长时间监听容易被风控，默认关" checked={cfg.listen.comment} onChange={(e) => set('listen', { comment: e.currentTarget.checked })} />
-        <Switch label="主人私信时叫醒她" checked={cfg.listen.dm} onChange={(e) => set('listen', { dm: e.currentTarget.checked })} />
-        <NumberInput label="检查间隔（秒）" min={15} w={200} value={cfg.listen.commentIntervalSec} onChange={(v) => set('listen', { commentIntervalSec: num(v) })} />
+        <Switch label="主人私信时及时回复" description="关掉后她看不到你的私信，也会以为你没理她、逐渐少分享" checked={cfg.listen.dm} onChange={(e) => set('listen', { dm: e.currentTarget.checked })} />
+        <Switch label="有人回复或 @ 她时及时处理" description="关掉后，回复和 @ 留到她按作息醒来时一起看。新号长时间开着容易被风控" checked={cfg.listen.comment} onChange={(e) => set('listen', { comment: e.currentTarget.checked })} />
+        <Stack gap={4}>
+          <Text size="sm" fw={500}>多久检查一次（以上两项共用）</Text>
+          <SegmentedControl fullWidth size="sm" data={INTERVALS} value={String(interval)} disabled={!listening}
+            onChange={(v) => set('listen', { commentIntervalSec: Number(v) })} />
+          <Text size="xs" c="dimmed">{listenHint}</Text>
+        </Stack>
       </Block>
 
       <Accordion variant="contained" value={advanced} onChange={setAdvanced} id={sectionId('高级')} style={{ scrollMarginTop: 120 }}>

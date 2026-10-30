@@ -1,7 +1,7 @@
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
 import { Markdown } from '../src/components/Markdown'
-import { configPayload, plainHttpWarning, type AppConfig } from '../src/api'
+import { configPayload, listenReadsPerDay, plainHttpWarning, type AppConfig } from '../src/api'
 import { groupLog, kindOf, progressText, toolLabel } from '../src/labels'
 import { monthCells } from '../src/calendar'
 
@@ -32,6 +32,12 @@ it('保存配置不带 self（扫码登录写的，网页上不可编辑）', ()
   const sent = JSON.parse(JSON.stringify(configPayload(cfg)))
   expect(sent).not.toHaveProperty('self')
   expect(sent.owner).toEqual({ mid: '1', name: '主人' })
+})
+
+it('监听每天的读取次数：私信每次 1 次、评论每次 2 次，都关时为 0', () => {
+  expect(listenReadsPerDay({ dm: true, comment: false, commentIntervalSec: 180 })).toBe(480)
+  expect(listenReadsPerDay({ dm: true, comment: true, commentIntervalSec: 60 })).toBe(4320)
+  expect(listenReadsPerDay({ dm: false, comment: false, commentIntervalSec: 60 })).toBe(0)
 })
 
 it.each([
