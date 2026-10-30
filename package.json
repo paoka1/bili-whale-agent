@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "description": "让 AI 用自己的 B 站小号刷视频、写日记、把值得看的私信分享给你",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paoka1/bili-whale-agent.git"
+  },
+  "homepage": "https://github.com/paoka1/bili-whale-agent#readme",
+  "bugs": "https://github.com/paoka1/bili-whale-agent/issues",
   "engines": {
     "node": ">=22"
   },

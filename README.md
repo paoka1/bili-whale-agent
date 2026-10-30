@@ -22,7 +22,7 @@
 ## 安装与启动
 
 ```bash
-git clone <本仓库地址> bili-whale-agent
+git clone https://github.com/paoka1/bili-whale-agent.git
 cd bili-whale-agent
 npm install
 npm run build
