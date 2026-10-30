@@ -1,6 +1,6 @@
 # bili-whale-agent Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 把 DSH 插件 dsh-bili-whale 改造成一个独立常驻程序：自带 agent（Vercel AI SDK）、网页配置与活动查看，B 站能力独立成包。
 
@@ -9,6 +9,8 @@
 **Tech Stack:** Node ≥22、TypeScript 7、ai 7 + @ai-sdk/openai-compatible 3、zod 4、hono 4 + @hono/node-server 2、vitest 5、react 19、vite 8、@mantine/core 9、marked 18 + dompurify 3、qrcode 1.5.4。
 
 **Spec:** `docs/superpowers/specs/2026-10-29-bili-whale-agent-design.md`
+
+**进度：** 2026-10-30 全部完成并上线，只剩 Task 13 Step 9（实测几天后精简 `packages/bili`，见 `docs/TODO.md`）。
 
 **上游参考：** `upstream/`（Task 1 克隆 `https://github.com/Alterssss/dsh-bili-whale` 的 tag `v0.4.6`，git 忽略）。下文「移植自 `upstream/x`」指以该文件逻辑为准改写为 TS：去掉 CLI 参数解析和 console 输出，改为参数进、结构化结果出；保留其中每条带日期的修复（注释里的「实测」「修」），这些是踩过的坑。
 
@@ -49,10 +51,10 @@
 - Create: `packages/web/`（`npm create vite` 的 react-ts 模板，删掉示例内容）
 - Test: `packages/bili/test/smoke.test.ts`、`packages/core/test/smoke.test.ts`
 
-- [ ] **Step 1:** `scripts/fetch-upstream.mjs`：若 `upstream/` 不存在则 `git clone --depth 1 --branch v0.4.6 https://github.com/Alterssss/dsh-bili-whale upstream`（`execFileSync`，固定参数）。运行它，确认 `upstream/tools/lib/night-plan.mjs` 存在。
-- [ ] **Step 2:** 写两个 smoke 测试：`import * as m from '../src/index.js'` 后 `expect(m).toBeTypeOf('object')`。
-- [ ] **Step 3:** 根目录 `npm install` 后运行 `npm test`（每个包 `vitest run`）。Expected: 2 passed。`npm run build`（`tsc -b packages/bili packages/core` + `vite build` in web）无错误。
-- [ ] **Step 4: Commit** — `git add -A && git commit -m "chore: scaffold workspaces"`（同时提交已有的 `docs/`）。
+- [x] **Step 1:** `scripts/fetch-upstream.mjs`：若 `upstream/` 不存在则 `git clone --depth 1 --branch v0.4.6 https://github.com/Alterssss/dsh-bili-whale upstream`（`execFileSync`，固定参数）。运行它，确认 `upstream/tools/lib/night-plan.mjs` 存在。
+- [x] **Step 2:** 写两个 smoke 测试：`import * as m from '../src/index.js'` 后 `expect(m).toBeTypeOf('object')`。
+- [x] **Step 3:** 根目录 `npm install` 后运行 `npm test`（每个包 `vitest run`）。Expected: 2 passed。`npm run build`（`tsc -b packages/bili packages/core` + `vite build` in web）无错误。
+- [x] **Step 4: Commit** — `git add -A && git commit -m "chore: scaffold workspaces"`（同时提交已有的 `docs/`）。
 
 ---
 
@@ -76,7 +78,7 @@
   - `type BiliSettings = { owner: { mid: string; name: string }; self: { mid: string; name: string }; preferences: { like: string[]; dislike: string[] }; risk: RiskSettings; quota: { shareDaily: number }; share: { enabled: boolean; via: 'comment' | 'dm'; minScore: number; silentAfterDays: number } }`
   - `biliGet<T>(ctx: BiliContext, url: string, opt?: { wbi?: boolean; ttlMs?: number; noCache?: boolean }): Promise<BiliResponse<T>>`；`biliPost<T>(ctx, url, form: Record<string, string>, opt?: { waitWriteMs?: number }): Promise<BiliResponse<T>>`（自动附 `csrf=bili_jct` 到 body，不放 URL；风控暂停时两者都抛 `TrafficError`，`biliGet` 对可缓存元信息改返回 7 天内的旧缓存；HTTP 错误 / 非 JSON / 网络错误返回 `code: -1` 与不含正文和凭据的说明；`type BiliResponse<T> = { code: number; message: string; data?: T; cached?: boolean }`）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 // net.test.ts
@@ -96,10 +98,10 @@ it('凭据不进错误信息', async () => { /* transport 抛错 */ await expect
 
 `traffic.test.ts`：移植 `upstream/tests/traffic.test.mjs` 中的用例（写入每小时上限、写入间隔、暂停后拒绝、状态文件损坏即停）。`signWbi` 用上游 `tests/` 里的固定向量；若上游无向量，用固定 `imgKey/subKey/now` 计算一次后作为快照断言。
 
-- [ ] **Step 2:** `npx vitest run packages/bili` — Expected: FAIL（模块不存在）。
-- [ ] **Step 3:** 实现。`traffic.ts` 移植自 `upstream/tools/lib/traffic.mjs`（锁文件、按账号计数、`until` 暂停、`manual` 人工处理标记）；`api.ts` 移植自 `upstream/tools/lib/bili-api.mjs`（WBI 签名、nav 取 key 并缓存、元数据缓存 TTL、熔断时只返回稳定元数据的旧缓存）。所有请求先 `assertBiliUrl` 再走 `guard.fetch`。`creds.ts` 写入时 `fs.chmodSync(f, 0o600)`（Windows 忽略失败）。
-- [ ] **Step 4:** `npx vitest run packages/bili` — Expected: PASS。
-- [ ] **Step 5: Commit** — `feat(bili): paths, storage, credentials, traffic guard, api client`
+- [x] **Step 2:** `npx vitest run packages/bili` — Expected: FAIL（模块不存在）。
+- [x] **Step 3:** 实现。`traffic.ts` 移植自 `upstream/tools/lib/traffic.mjs`（锁文件、按账号计数、`until` 暂停、`manual` 人工处理标记）；`api.ts` 移植自 `upstream/tools/lib/bili-api.mjs`（WBI 签名、nav 取 key 并缓存、元数据缓存 TTL、熔断时只返回稳定元数据的旧缓存）。所有请求先 `assertBiliUrl` 再走 `guard.fetch`。`creds.ts` 写入时 `fs.chmodSync(f, 0o600)`（Windows 忽略失败）。
+- [x] **Step 4:** `npx vitest run packages/bili` — Expected: PASS。
+- [x] **Step 5: Commit** — `feat(bili): paths, storage, credentials, traffic guard, api client`
 
 ---
 
@@ -122,7 +124,7 @@ it('凭据不进错误信息', async () => { /* transport 抛错 */ await expect
   - `feed(ctx, opt?: { n?: number; pool?: number }): Promise<{ prefs: string[]; candidates: FeedCandidate[] }>`；`type FeedCandidate = VideoCard & { hits: string[]; source: string }`（`source` 为搜索词或「热门」「排行」「关注」）（移植自 `feed.mjs`：前 6 个偏好取搜索词、按词交替 click/pubdate、10 分钟搜索缓存、加上热门 / 排行 / 关注三路、排除看过（两本日记）/ 评论过（`quota.json`）/ 收藏过的 BV、去掉自己的视频、低质过滤、按「弹幕密度 + 偏好命中 + 收藏回流」排序、同类最多 2 条；`quota.json` 损坏时抛错）
   - `briefVideo(ctx, bvid, opt?: { comments?: number }): Promise<VideoBrief>`；`type VideoBrief = { meta: VideoMeta; subtitles: string | null; danmaku: Awaited<ReturnType<typeof getDanmakuHotspots>>; comments: CommentItem[] }`（字幕截断到 6000 字）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 // feed.test.ts —— 数值来自 2026-10-29 用上游代码实测
@@ -139,10 +141,10 @@ it('字幕接口回 HTML 时当作没有字幕', async () => { expect(await getS
 it('briefVideo 组合四路且字幕截断到 6000 字', async () => { expect(b.subtitles!.length).toBeLessThanOrEqual(6000) })
 ```
 
-- [ ] **Step 2:** 运行 — Expected: FAIL。
-- [ ] **Step 3:** 实现上述函数（读类全部经 `biliGet`，不受 `dryRun` 影响）。
-- [ ] **Step 4:** 运行 — Expected: PASS。
-- [ ] **Step 5: Commit** — `feat(bili): read-side video understanding and feed`
+- [x] **Step 2:** 运行 — Expected: FAIL。
+- [x] **Step 3:** 实现上述函数（读类全部经 `biliGet`，不受 `dryRun` 影响）。
+- [x] **Step 4:** 运行 — Expected: PASS。
+- [x] **Step 5: Commit** — `feat(bili): read-side video understanding and feed`
 
 ---
 
@@ -158,11 +160,11 @@ it('briefVideo 组合四路且字幕截断到 6000 字', async () => { expect(b.
   - `findFfmpeg(): string | null`（顺序：`$FFMPEG` → PATH → `<dataDir>/bin`）
   - `captureFrames(ctx, bvid, opt?: { grid?: '3x3' | '4x4'; tile?: number }): Promise<{ ok: true; imagePath: string; frameTimes: number[] } | { ok: false; reason: string }>`
 
-- [ ] **Step 1: 写失败测试** — `findFfmpeg` 在 `FFMPEG` 指向不存在文件时返回 null；`captureFrames` 在找不到 ffmpeg 时返回 `{ ok: false, reason: '未安装 ffmpeg，跳过看画面' }`；视频直链不在白名单时返回 `ok: false` 且不发请求。
-- [ ] **Step 2:** 运行 — Expected: FAIL。
-- [ ] **Step 3:** 实现，移植自 `upstream/tools/commands/bili-watch.mjs` 与 `tools/lib/ffmpeg.mjs`：`platform=pc&qn=80` 取 720p mp4 直链、流式写到 `<dataDir>/shots/video/`、scene 变化点优先不足则等间隔、拼九宫格（每格默认 720px）。ffmpeg 用 `execFile`，参数数组由代码生成，输出文件名由代码生成（`<bvid>-<时间戳>-<grid>.jpg`），用完删除 mp4。
-- [ ] **Step 4:** 运行 — Expected: PASS。若本机有 ffmpeg，另跑一次手动验证：对一个公开 BV 生成九宫格并用图片查看器打开。
-- [ ] **Step 5: Commit** — `feat(bili): frame capture via ffmpeg`
+- [x] **Step 1: 写失败测试** — `findFfmpeg` 在 `FFMPEG` 指向不存在文件时返回 null；`captureFrames` 在找不到 ffmpeg 时返回 `{ ok: false, reason: '未安装 ffmpeg，跳过看画面' }`；视频直链不在白名单时返回 `ok: false` 且不发请求。
+- [x] **Step 2:** 运行 — Expected: FAIL。
+- [x] **Step 3:** 实现，移植自 `upstream/tools/commands/bili-watch.mjs` 与 `tools/lib/ffmpeg.mjs`：`platform=pc&qn=80` 取 720p mp4 直链、流式写到 `<dataDir>/shots/video/`、scene 变化点优先不足则等间隔、拼九宫格（每格默认 720px）。ffmpeg 用 `execFile`，参数数组由代码生成，输出文件名由代码生成（`<bvid>-<时间戳>-<grid>.jpg`），用完删除 mp4。
+- [x] **Step 4:** 运行 — Expected: PASS。若本机有 ffmpeg，另跑一次手动验证：对一个公开 BV 生成九宫格并用图片查看器打开。
+- [x] **Step 5: Commit** — `feat(bili): frame capture via ffmpeg`
 
 ---
 
@@ -182,7 +184,7 @@ it('briefVideo 组合四路且字幕截断到 6000 字', async () => { expect(b.
   - `addFavorite(ctx, opt: { bvid: string; reason: string; kind?: string; better?: boolean }): Promise<WriteResult>`；`listFavorites(dataDir): FavItem[]`；`type FavItem = { bvid: string; aid: number; title: string; up: string; at: string; reason: string; kind: string; favId?: number }`（`favorites.json` 的 `items`，格式同上游）
   - `dmOwner(ctx, opt: { message: string; share?: { bvid: string; reason: string; score: number; rank: number } }): Promise<WriteResult>`
 
-- [ ] **Step 1: 写失败测试**（每条对应 Global Constraints 的一条硬规则）
+- [x] **Step 1: 写失败测试**（每条对应 Global Constraints 的一条硬规则）
 
 ```ts
 it('分享第 4 条被拒', ...)                 // shareDaily=3
@@ -199,10 +201,10 @@ it('写入计数超过 writeHourly 时 TrafficError', ...)
 
 可从 `upstream/tests/review.test.mjs`、`integration.test.mjs`、`dm-exit-integration.test.mjs` 移植对应断言。
 
-- [ ] **Step 2:** 运行 — Expected: FAIL。
-- [ ] **Step 3:** 实现，移植自 `upstream/tools/commands/comment.mjs`、`quota.mjs`、`reply-draft.mjs`、`fav.mjs`、`dm.mjs`、`tools/lib/share-policy.mjs`、`quota-gate.mjs`。去掉 `--dry/--go` 两段式：`ctx.dryRun` 为真即演练，为假即直接发送（闸门检查在发送前完成）。发送成功后回读确认署名（上游「署名复核」）。
-- [ ] **Step 4:** 运行 — Expected: PASS。
-- [ ] **Step 5: Commit** — `feat(bili): gated write actions`
+- [x] **Step 2:** 运行 — Expected: FAIL。
+- [x] **Step 3:** 实现，移植自 `upstream/tools/commands/comment.mjs`、`quota.mjs`、`reply-draft.mjs`、`fav.mjs`、`dm.mjs`、`tools/lib/share-policy.mjs`、`quota-gate.mjs`。去掉 `--dry/--go` 两段式：`ctx.dryRun` 为真即演练，为假即直接发送（闸门检查在发送前完成）。发送成功后回读确认署名（上游「署名复核」）。
+- [x] **Step 4:** 运行 — Expected: PASS。
+- [x] **Step 5: Commit** — `feat(bili): gated write actions`
 
 ---
 
@@ -222,11 +224,11 @@ it('写入计数超过 writeHourly 时 TrafficError', ...)
   - `type LogEntry = { at: string; kind: string; target: string | null; note: string }`；`appendLog(dataDir, e: Omit<LogEntry, 'at'>): void`；`readLog(dataDir, limit?: number): LogEntry[]`
   - `class QrLogin { constructor(opt: { save: (cred: BiliCred, account: { mid: string; name: string }) => Promise<void>; fetch?: typeof fetch; now?: () => number }); start(): Promise<QrState>; poll(id: string): Promise<QrState>; cancel(id?: string): void }`；`type QrState = { id: string; status: 'waiting' | 'scanned' | 'confirmed' | 'expired' | 'failed'; image?: string; account?: { mid: string; name: string }; error?: string; expiresAt: number }`
 
-- [ ] **Step 1: 写失败测试** — 移植 `upstream/tests/msgfeed-exact.test.mjs`、`dm-history.test.mjs`、`auth.test.mjs`（扫码等待、确认、过期、取消、失败不替换旧凭据）；新增：`pullInbox` 把 `mid === owner.mid` 标为 `owner`；`writeDiary` 超过 200KB 抛错；`readLog` 返回最近 N 条。
-- [ ] **Step 2:** 运行 — Expected: FAIL。
-- [ ] **Step 3:** 实现。`QrLogin` 移植自 `upstream/lib/auth.js`（`passport.bilibili.com` 在白名单内）。
-- [ ] **Step 4:** 运行 — Expected: PASS。
-- [ ] **Step 5: Commit** — `feat(bili): inbox, owner DMs, diaries, QR login`
+- [x] **Step 1: 写失败测试** — 移植 `upstream/tests/msgfeed-exact.test.mjs`、`dm-history.test.mjs`、`auth.test.mjs`（扫码等待、确认、过期、取消、失败不替换旧凭据）；新增：`pullInbox` 把 `mid === owner.mid` 标为 `owner`；`writeDiary` 超过 200KB 抛错；`readLog` 返回最近 N 条。
+- [x] **Step 2:** 运行 — Expected: FAIL。
+- [x] **Step 3:** 实现。`QrLogin` 移植自 `upstream/lib/auth.js`（`passport.bilibili.com` 在白名单内）。
+- [x] **Step 4:** 运行 — Expected: PASS。
+- [x] **Step 5: Commit** — `feat(bili): inbox, owner DMs, diaries, QR login`
 
 ---
 
@@ -244,9 +246,9 @@ it('写入计数超过 writeHourly 时 TrafficError', ...)
   - `type Secrets = { llmApiKey: string; visionApiKey: string }`；`loadSecrets(dataDir): Secrets`；`saveSecrets(dataDir, patch: Partial<Secrets>): void`（0600）；`maskSecrets(s: Secrets): { llmApiKey: boolean; visionApiKey: boolean }`
   - `readPersona(dataDir): string`；`writePersona(dataDir, text: string): void`（上限 3000 字，与 Task 9 系统提示实际使用的长度一致；2026-10-29 由 20000 改）
 
-- [ ] **Step 1: 写失败测试** — 空目录 `loadConfig` 返回默认且 `dryRun === true`；`saveConfig({ night: { windows: [{ start: '25:00', end: '26:00', wakes: 1 }] } })` 抛错；`saveConfig({ evil: 1 })` 抛错；`maskSecrets` 只返回布尔；`config.json` 里不出现 key。
-- [ ] **Step 2–4:** 运行失败 → 实现 → 运行通过。
-- [ ] **Step 5: Commit** — `feat(core): config and secrets`
+- [x] **Step 1: 写失败测试** — 空目录 `loadConfig` 返回默认且 `dryRun === true`；`saveConfig({ night: { windows: [{ start: '25:00', end: '26:00', wakes: 1 }] } })` 抛错；`saveConfig({ evil: 1 })` 抛错；`maskSecrets` 只返回布尔；`config.json` 里不出现 key。
+- [x] **Step 2–4:** 运行失败 → 实现 → 运行通过。
+- [x] **Step 5: Commit** — `feat(core): config and secrets`
 
 ---
 
@@ -270,7 +272,7 @@ it('写入计数超过 writeHourly 时 TrafficError', ...)
   - `video_deep`：主模型支持图片（`vision.enabled === false`）时用 `toModelOutput` 返回图片；否则调用 `describeImage` 得到文字描述再返回（**2026-10-29 改，见 Task 9 的「看画面三条路」**：工具结果只回文字，图片由 runner 作为 user 消息补进去）
   - `makeDescribeImage(cfg: AppConfig, secrets: Secrets): ((imagePath: string) => Promise<string>) | undefined`（`vision.ts`，用看图模型生成不超过 800 字的画面描述）
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```ts
 it('伪造结束标记无法跳出包装', () => {
@@ -285,8 +287,8 @@ it('dryRun 下 comment_post 返回 dry-run', ...)
 it('工具集里没有任何执行命令或读任意文件的工具', () => { expect(Object.keys(all)).toEqual(expect.not.arrayContaining(['bash', 'shell', 'exec', 'read_file'])) })
 ```
 
-- [ ] **Step 2–4:** 运行失败 → 实现（`tool()`、`inputSchema`、`execute(args, { abortSignal })`）→ 运行通过。
-- [ ] **Step 5: Commit** — `feat(core): agent tools with validation and untrusted wrapping`
+- [x] **Step 2–4:** 运行失败 → 实现（`tool()`、`inputSchema`、`execute(args, { abortSignal })`）→ 运行通过。
+- [x] **Step 5: Commit** — `feat(core): agent tools with validation and untrusted wrapping`
 
 ---
 
@@ -317,9 +319,9 @@ it('工具集里没有任何执行命令或读任意文件的工具', () => { ex
   - `type RunRecord = { id: string; kind: RunKind; startedAt: string; endedAt: string; status: 'ok' | 'failed' | 'timeout' | 'paused' | 'login-expired'; steps: number; toolCalls: { name: string; ok: boolean }[]; draftsAdded: number; finalText: string; error?: string }`（`finalText` 为模型最后一条文字；`wakePrompt` 要求唤醒运行的最后一条文字就是「给主人的信」；工具抛 `TrafficError` / `LoginExpiredError` 时运行立即结束并分别记为 `paused` / `login-expired`；`TrafficError.refusal` 为真（冷却、预算、重复、排队满，只拒绝这一次请求）时不结束，原因作为工具错误交给模型）
   - `runAgent(input: { kind: RunKind; prompt: string }, deps: { ctx: BiliContext; cfg: AppConfig; secrets: Secrets; model?: LanguageModel; signal?: AbortSignal }): Promise<RunRecord>`（`generateText({ model, system, prompt, tools, stopWhen: isStepCount(40), abortSignal: AbortSignal.any([signal, AbortSignal.timeout(15 * 60_000)]) })`；结束后 `appendLog(kind: 'run', note: 摘要)` 并把 `RunRecord` 追加到 `runs.jsonl`）
 
-- [ ] **Step 1: 写失败测试** — 用 `ai/test` 导出的模拟模型（v7 中的类名以该入口实际导出为准）：模型第一步调用 `quota_status`、第二步返回文本 → `RunRecord.status === 'ok'`、`toolCalls` 记录 1 次；模型一直调用工具 → 第 40 步停止；模型抛错 → `status: 'failed'` 且 `error` 不含 API key；`wakePrompt` 在 `share.via === 'dm'` 时不含 `comment_post` 的分享指引；`systemPrompt` 人设截断到 3000 字。
-- [ ] **Step 2–4:** 运行失败 → 实现 → 运行通过。
-- [ ] **Step 5: Commit** — `feat(core): prompts and agent runner`
+- [x] **Step 1: 写失败测试** — 用 `ai/test` 导出的模拟模型（v7 中的类名以该入口实际导出为准）：模型第一步调用 `quota_status`、第二步返回文本 → `RunRecord.status === 'ok'`、`toolCalls` 记录 1 次；模型一直调用工具 → 第 40 步停止；模型抛错 → `status: 'failed'` 且 `error` 不含 API key；`wakePrompt` 在 `share.via === 'dm'` 时不含 `comment_post` 的分享指引；`systemPrompt` 人设截断到 3000 字。
+- [x] **Step 2–4:** 运行失败 → 实现 → 运行通过。
+- [x] **Step 5: Commit** — `feat(core): prompts and agent runner`
 
 ---
 
@@ -339,9 +341,9 @@ it('工具集里没有任何执行命令或读任意文件的工具', () => { ex
   - `notify(cfg: AppConfig, ctx: BiliContext, msg: { title: string; text: string }): Promise<{ ok: boolean; error?: string }>`（`none` 直接 ok；`dm` 调 `dmOwner`；`webhook` POST `{ title, text }` JSON 到 `notify.url`，按上游 `notify.mjs` 对飞书 / 钉钉 / 企业微信域名适配报文；10 秒超时）
   - 调度器在每次运行结束后推送（spec 5.5 的四类）：`wake` 且 `status === 'ok'` 且 `finalText` 非空 → 推送 `finalText`（标题「她醒来过一次」）；`draftsAdded > 0` → 「有 N 条回复待你审核」；`status === 'paused'` → 「请求保护已暂停：<原因>」；`status === 'login-expired'` → 「B 站登录失效，请在网页重新扫码」，并在重新登录前暂停调度。
 
-- [ ] **Step 1: 写失败测试** — 移植 planner 用例；新增：运行中调用 `wakeNow()` 返回 `{ queued: true }` 且 `run` 不会并发（用延迟 promise 断言同一时刻调用数 ≤1）；连续两次相同 `wake` 只排一个；监听失败后下次间隔翻倍、成功后恢复；`notify` 在 `type: 'none'` 不发请求、webhook 超时返回 `ok: false`；四类推送各一条用例（`run` 替身返回对应的 `RunRecord`，断言 `notify` 收到的标题）；`login-expired` 后不再触发新的运行。
-- [ ] **Step 2–4:** 运行失败 → 实现（fake timers）→ 运行通过。
-- [ ] **Step 5: Commit** — `feat(core): scheduler and notifications`
+- [x] **Step 1: 写失败测试** — 移植 planner 用例；新增：运行中调用 `wakeNow()` 返回 `{ queued: true }` 且 `run` 不会并发（用延迟 promise 断言同一时刻调用数 ≤1）；连续两次相同 `wake` 只排一个；监听失败后下次间隔翻倍、成功后恢复；`notify` 在 `type: 'none'` 不发请求、webhook 超时返回 `ok: false`；四类推送各一条用例（`run` 替身返回对应的 `RunRecord`，断言 `notify` 收到的标题）；`login-expired` 后不再触发新的运行。
+- [x] **Step 2–4:** 运行失败 → 实现（fake timers）→ 运行通过。
+- [x] **Step 5: Commit** — `feat(core): scheduler and notifications`
 
 ---
 
@@ -367,7 +369,7 @@ it('工具集里没有任何执行命令或读任意文件的工具', () => { ex
   - cookie：`httpOnly`、`SameSite=Strict`、`Path=/`，HTTPS 时 `Secure`
   - 审计：登录成功 / 失败、配置修改、密钥修改、草稿批准 / 拒绝写入 `audit.jsonl`
 
-- [ ] **Step 1: 写失败测试**（`app.request()`）
+- [x] **Step 1: 写失败测试**（`app.request()`）
 
 ```ts
 it('未设置时只有 setup 可用，且设置码错误被拒', ...)
@@ -382,8 +384,8 @@ it('/api/status 含 serverTime 与 timezone', ...)
 it('错误响应不泄露 cookie 或 key', ...)
 ```
 
-- [ ] **Step 2–4:** 运行失败 → 实现 → 运行通过。
-- [ ] **Step 5: Commit** — `feat(core): http api with auth, csrf and audit`
+- [x] **Step 2–4:** 运行失败 → 实现 → 运行通过。
+- [x] **Step 5: Commit** — `feat(core): http api with auth, csrf and audit`
 
 ---
 
@@ -397,7 +399,7 @@ it('错误响应不泄露 cookie 或 key', ...)
 - Consumes: Task 11 的路由
 - Produces: 两个主页面（顶部导航「配置 / 活动」），按 spec 5.7 的字段与分块。`Markdown({ source: string })`：`marked.parse` 后用 `DOMPurify.sanitize` 再渲染。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```tsx
 it('日记里的脚本与事件属性被清除', () => {
@@ -407,9 +409,9 @@ it('日记里的脚本与事件属性被清除', () => {
 })
 ```
 
-- [ ] **Step 2–4:** 运行失败 → 实现（Mantine 表单；key 输入框只写，已设置时显示「已设置，留空不修改」；主模型下方有「主模型能看图（如 deepseek-flash）」勾选框，对应 `llm.images`；B 站账号区块显示二维码并每 2 秒轮询；活动页每 15 秒刷新状态；状态栏显示「服务器时间 HH:mm（时区）」与「演练模式」徽标；`location.protocol === 'http:'` 且主机名不是 `localhost` / `127.0.0.1` 时顶部显示明文传输提示；配置页「高级」里有修改密码）→ 运行通过。
-- [ ] **Step 5:** `npm run build -w packages/web` 无错误。
-- [ ] **Step 6: Commit** — `feat(web): setup, login, config and activity pages`
+- [x] **Step 2–4:** 运行失败 → 实现（Mantine 表单；key 输入框只写，已设置时显示「已设置，留空不修改」；主模型下方有「主模型能看图（如 deepseek-flash）」勾选框，对应 `llm.images`；B 站账号区块显示二维码并每 2 秒轮询；活动页每 15 秒刷新状态；状态栏显示「服务器时间 HH:mm（时区）」与「演练模式」徽标；`location.protocol === 'http:'` 且主机名不是 `localhost` / `127.0.0.1` 时顶部显示明文传输提示；配置页「高级」里有修改密码）→ 运行通过。
+- [x] **Step 5:** `npm run build -w packages/web` 无错误。
+- [x] **Step 6: Commit** — `feat(web): setup, login, config and activity pages`
 
 ---
 
@@ -424,12 +426,12 @@ it('日记里的脚本与事件属性被清除', () => {
 - Consumes: 全部
 - Produces: `bili-whale start [--host <h>] [--port <p>] [--data <dir>]`：解析参数 → `resolveDataDir` → 加载配置 → 若需要设置则在终端打印设置码 → 启动 Hono（有 `tlsCert/tlsKey` 时用 HTTPS）→ 启动调度器 → 打印访问地址；监听非 `127.0.0.1` 且无 TLS 时打印明文警告。`SIGINT/SIGTERM` 优雅退出（等当前运行结束最多 30 秒）。
 
-- [ ] **Step 1: 写失败测试** — `parseArgs(['start','--host','0.0.0.0','--port','9000'])` 得到 `{ host: '0.0.0.0', port: 9000 }`；非法端口报错；`--data` 覆盖 `BILI_WHALE_HOME`。
-- [ ] **Step 2–4:** 运行失败 → 实现 → 运行通过。
-- [ ] **Step 5:** 根目录 `npm test` 全部通过；`npm run build` 无错误。
-- [ ] **Step 6: Commit** — `feat: cli entry, docs`
-- [ ] **Step 7: 真机验证（演练模式）** — 在局域网里的 Ubuntu 服务器上：拷贝构建产物到 `~/bili-whale-agent`，`node packages/core/dist/cli.js start --host 0.0.0.0`（端口 8787，与现有服务不冲突），浏览器打开 → 输入设置码设密码 → 配模型（DeepSeek）→ 人设：从旧的 `~/.bili-ai/persona.md` 迁移，把其中 DSH 命令（如 `node bili.mjs comment --oid … --dry/--go`）改写成本项目工具名（自己想说时用不带 `share` 的 `comment_post`，演练由程序控制、不再写 dry/go）→ 用**测试号**扫码 → 填主人 mid → 点「立即唤醒」。Expected：活动页出现一轮记录（看了哪些视频、`comment_post` 为 dry-run），两本日记有内容，`traffic-state.json` 写入次数为 0。
-- [ ] **Step 8: 真机验证（真实写入）** — 测试号转正后，在配置里关闭演练模式，再唤醒一次。Expected：测试号在 B 站真实发出一条评论或分享，活动页与 `quota.json` 记录一致。
+- [x] **Step 1: 写失败测试** — `parseArgs(['start','--host','0.0.0.0','--port','9000'])` 得到 `{ host: '0.0.0.0', port: 9000 }`；非法端口报错；`--data` 覆盖 `BILI_WHALE_HOME`。
+- [x] **Step 2–4:** 运行失败 → 实现 → 运行通过。
+- [x] **Step 5:** 根目录 `npm test` 全部通过；`npm run build` 无错误。
+- [x] **Step 6: Commit** — `feat: cli entry, docs`
+- [x] **Step 7: 真机验证（演练模式）** — 在局域网里的 Ubuntu 服务器上：拷贝构建产物到 `~/bili-whale-agent`，`node packages/core/dist/cli.js start --host 0.0.0.0`（端口 8787，与现有服务不冲突），浏览器打开 → 输入设置码设密码 → 配模型（DeepSeek）→ 人设：从旧的 `~/.bili-ai/persona.md` 迁移，把其中 DSH 命令（如 `node bili.mjs comment --oid … --dry/--go`）改写成本项目工具名（自己想说时用不带 `share` 的 `comment_post`，演练由程序控制、不再写 dry/go）→ 用**测试号**扫码 → 填主人 mid → 点「立即唤醒」。Expected：活动页出现一轮记录（看了哪些视频、`comment_post` 为 dry-run），两本日记有内容，`traffic-state.json` 写入次数为 0。
+- [x] **Step 8: 真机验证（真实写入）** — 测试号转正后，在配置里关闭演练模式，再唤醒一次。Expected：测试号在 B 站真实发出一条评论或分享，活动页与 `quota.json` 记录一致。
 - [ ] **Step 9: 按真机结果精简 `packages/bili`**（Task 4–6 的防御与测试偏多，按上面「只在边界校验」「测试从简」两条约定回头收紧）：
   - 评论、收藏、私信、草稿、抽帧函数里去掉与 Task 8 zod schema 重复的格式 / 类型 / 范围检查。
   - `qr-login.ts` 只保留三条：二维码地址必须是官方域名、nav 核验通过才替换旧凭据、返回给网页的状态不含凭据；去掉昵称打码、128KB 流式限长、cookie 控制字符与冲突检测。

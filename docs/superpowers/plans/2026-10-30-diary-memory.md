@@ -9,7 +9,7 @@
 **Tech Stack:** Node ≥22、TypeScript、vitest、zod 4、ai SDK `tool()`、React 19 + Mantine 9。
 
 **Spec:** `docs/superpowers/specs/2026-10-30-diary-memory-design.md`
-**进度（2026-10-30）：** Task 1–3 已在本地实现，待 Claude 审核，按用户要求未提交；Task 4–5 未开始，没有修改真实数据或部署。
+**进度：** 2026-10-30 全部完成并上线（Task 1–3 Codex 实现、Claude 审核修正；Task 4–5 Claude 实现）。
 
 **验证：** `packages/bili` 全量 262 项、`packages/core` 全量 108 项通过；`npm exec tsc -- -b packages/bili packages/core` 通过。当前环境禁用测试子进程，验证使用 `npm exec -w packages/bili -- vitest run --pool=threads --maxWorkers=1` 与 `npm test -w packages/core -- --pool=threads --maxWorkers=1 --configLoader=native`；类型检查限制 `GOMAXPROCS=2`。并行验证曾因环境内存不足退出，以上为改成逐项运行后的结果，未改测试配置。
 
@@ -137,7 +137,7 @@
 **Files:**
 - Modify: `README.md`（数据目录表加 `whale-memory.md`）、`docs/TODO.md`（完成后划掉这一条）
 
-- [ ] **Step 1:** `npm run build` 与 `npm test` 全部通过。
-- [ ] **Step 2:** 对照 spec 第 11 节逐条核对。
-- [ ] **Step 3:** 按 spec 第 10 节上线：备份两本日记 → 部署 → 重启 → 手动唤醒一次 → 检查第一次就整理出长期记忆、新条目追加在末尾、网页显示正常。
-- [ ] **Step 4:** 提交。
+- [x] **Step 1:** `npm run build` 与 `npm test` 全部通过。
+- [x] **Step 2:** 对照 spec 第 11 节逐条核对。
+- [x] **Step 3:** 按 spec 第 10 节上线：备份两本日记 → 部署 → 重启 → 手动唤醒一次 → 检查第一次就整理出长期记忆、新条目追加在末尾、网页显示正常。
+- [x] **Step 4:** 提交。
