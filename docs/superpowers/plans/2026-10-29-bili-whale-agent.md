@@ -428,7 +428,7 @@ it('日记里的脚本与事件属性被清除', () => {
 - [ ] **Step 2–4:** 运行失败 → 实现 → 运行通过。
 - [ ] **Step 5:** 根目录 `npm test` 全部通过；`npm run build` 无错误。
 - [ ] **Step 6: Commit** — `feat: cli entry, docs`
-- [ ] **Step 7: 真机验证（演练模式）** — 在 局域网里的 Ubuntu 服务器上：拷贝构建产物到 `~/bili-whale-agent`，`node packages/core/dist/cli.js start --host 0.0.0.0`（端口 8787，与现有服务不冲突），浏览器打开 → 输入设置码设密码 → 配模型（DeepSeek）→ 人设：从旧的 `~/.bili-ai/persona.md` 迁移，把其中 DSH 命令（如 `node bili.mjs comment --oid … --dry/--go`）改写成本项目工具名（自己想说时用不带 `share` 的 `comment_post`，演练由程序控制、不再写 dry/go）→ 用**测试号**扫码 → 填主人 mid → 点「立即唤醒」。Expected：活动页出现一轮记录（看了哪些视频、`comment_post` 为 dry-run），两本日记有内容，`traffic-state.json` 写入次数为 0。
+- [ ] **Step 7: 真机验证（演练模式）** — 在局域网里的 Ubuntu 服务器上：拷贝构建产物到 `~/bili-whale-agent`，`node packages/core/dist/cli.js start --host 0.0.0.0`（端口 8787，与现有服务不冲突），浏览器打开 → 输入设置码设密码 → 配模型（DeepSeek）→ 人设：从旧的 `~/.bili-ai/persona.md` 迁移，把其中 DSH 命令（如 `node bili.mjs comment --oid … --dry/--go`）改写成本项目工具名（自己想说时用不带 `share` 的 `comment_post`，演练由程序控制、不再写 dry/go）→ 用**测试号**扫码 → 填主人 mid → 点「立即唤醒」。Expected：活动页出现一轮记录（看了哪些视频、`comment_post` 为 dry-run），两本日记有内容，`traffic-state.json` 写入次数为 0。
 - [ ] **Step 8: 真机验证（真实写入）** — 测试号转正后，在配置里关闭演练模式，再唤醒一次。Expected：测试号在 B 站真实发出一条评论或分享，活动页与 `quota.json` 记录一致。
 - [ ] **Step 9: 按真机结果精简 `packages/bili`**（Task 4–6 的防御与测试偏多，按上面「只在边界校验」「测试从简」两条约定回头收紧）：
   - 评论、收藏、私信、草稿、抽帧函数里去掉与 Task 8 zod schema 重复的格式 / 类型 / 范围检查。
