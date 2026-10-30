@@ -2,9 +2,10 @@
 import { tool, type ToolSet } from 'ai'
 import { z } from 'zod'
 import {
-  addDraft, addFavorite, appendLog, biliHeaders, briefVideo, captureFrames, dmOwner, feed,
+  addDraft, addFavorite, appendDiary, appendLog, biliHeaders, briefVideo, captureFrames, dmOwner, feed,
   getComments, getVideo, isFatalBiliError, listFavorites, postComment, pullInbox,
-  readDiaries, readQuota, searchVideos, TrafficError, writeDiary, type BiliContext,
+  readDiaryEntry, readDiarySnapshot, readQuota, searchDiaries, searchVideos, TrafficError, writeMemory,
+  APPEND_MAX_BYTES, CATALOG_LIMIT, MEMORY_MAX_CHARS, RECENT_DAYS, SEARCH_LIMIT, type BiliContext,
 } from '@bili-whale/bili'
 import { wrapUntrusted } from './untrusted.js'
 
@@ -104,12 +105,30 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
       execute: ({ hours }, { abortSignal }) => run(abortSignal, async (c) => external('收件箱', await pullInbox(c, { sinceMs: c.now() - (hours ?? 24) * 3600000 }))),
     }),
     diary_read: tool({
-      description: '读取公开和私人日记作为记忆素材。', inputSchema: emptyInput,
-      // 不走 external 的打码：日记会被整篇覆盖写回，打码会把主人昵称永久替换掉
-      execute: (_args, { abortSignal }) => run(abortSignal, (c) => {
-        const d = readDiaries(c.dataDir)
-        return `${wrapUntrusted('公开日记', d.public)}\n${wrapUntrusted('私人日记', d.private)}`
+      description: `读取长期记忆、最近 ${RECENT_DAYS} 个自然日的日记与最新 ${CATALOG_LIMIT} 条目录；传 entry 可回读任一条全文。`,
+      inputSchema: z.strictObject({ entry: z.string().optional() }),
+      // 不走 external 的打码：记忆要整篇写回，打码会把昵称永久替换掉。
+      execute: ({ entry }, { abortSignal }) => run(abortSignal, (c) => {
+        if (entry !== undefined) {
+          const found = readDiaryEntry(c.dataDir, entry)
+          return found ? wrapUntrusted('日记条目', JSON.stringify(found)) : { ok: false, reason: '没有这条日记' }
+        }
+        const snapshot = readDiarySnapshot(c.dataDir, c.now())
+        return [
+          ...(!snapshot.memory.trim() ? ['长期记忆是空的：先根据下面的近期日记整理一份，用 memory_write 保存'] : []),
+          ...(snapshot.total > CATALOG_LIMIT ? [`目录只列最新 ${CATALOG_LIMIT} 条，共 ${snapshot.total} 条，其余用 diary_search 按日期或关键词找。`] : []),
+          wrapUntrusted('分层记忆', JSON.stringify(snapshot)),
+        ].join('\n')
       }),
+    }),
+    diary_search: tool({
+      description: `按关键词、BV 或日期查旧日记，返回前 ${SEARCH_LIMIT} 条摘录和总命中数；用 diary_read({ entry }) 读全文。`,
+      inputSchema: z.strictObject({ query: z.string().trim().refine((text) => {
+        const chars = Array.from(text).length
+        return chars >= 1 && chars <= 100
+      }, '查询词须为 1–100 字'), which: z.enum(['public', 'private']).optional() }),
+      execute: ({ query, which }, { abortSignal }) => run(abortSignal, (c) =>
+        wrapUntrusted('旧日记搜索', JSON.stringify(searchDiaries(c.dataDir, query, which)))),
     }),
     quota_status: tool({
       description: '查看今日分享和收藏用量、配置上限与请求保护状态；实际发送仍须经过业务闸门。', inputSchema: emptyInput,
@@ -151,10 +170,20 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
       inputSchema: z.strictObject({ message, share: share.extend({ bvid }).optional() }),
       execute: (args, { abortSignal }) => run(abortSignal, (c) => dmOwner(c, args)),
     }),
-    diary_write: tool({
-      description: '整篇覆盖公开或私人日记，大小不超过 200KB。',
-      inputSchema: z.strictObject({ which: z.enum(['public', 'private']), markdown: z.string().refine((text) => Buffer.byteLength(text, 'utf8') <= 200 * 1024, '日记不能超过 200KB') }),
-      execute: ({ which, markdown }, { abortSignal }) => run(abortSignal, (c) => { writeDiary(c.dataDir, which, markdown); return { ok: true } }),
+    diary_append: tool({
+      description: `追加本轮公开或私人日记，正文不超过 ${APPEND_MAX_BYTES / 1024}KB；程序自动加日期标题，正文小节用 ###，不要重抄历史。`,
+      inputSchema: z.strictObject({ which: z.enum(['public', 'private']), markdown: z.string() }),
+      execute: ({ which, markdown }, { abortSignal }) => run(abortSignal, (c) =>
+        ({ ok: true, ...appendDiary(c.dataDir, which, markdown, c.now()) })),
+    }),
+    memory_write: tool({
+      description: `保存整理后的完整长期记忆，不超过 ${MEMORY_MAX_CHARS} 字；只记结论、待办和重要往来，没有变化不写。`,
+      inputSchema: z.strictObject({ markdown: z.string().refine((text) => Array.from(text).length <= MEMORY_MAX_CHARS,
+        `长期记忆不能超过 ${MEMORY_MAX_CHARS} 字，请先压缩结论`) }),
+      execute: ({ markdown }, { abortSignal }) => run(abortSignal, (c) => {
+        writeMemory(c.dataDir, markdown)
+        return { ok: true, chars: Array.from(markdown).length }
+      }),
     }),
     log: tool({
       description: '记录一条活动，供主人查看。',
@@ -162,7 +191,8 @@ export function buildTools(ctx: BiliContext, kind: RunKind, deps: ToolDependenci
       execute: ({ kind, target, note }, { abortSignal }) => run(abortSignal, (c) => { appendLog(c.dataDir, { kind, target: target ?? null, note }); return { ok: true } }),
     }),
   }
-  if (kind === 'stranger-message') { delete tools.reply_owner; delete tools.comment_post; delete tools.dm_owner }
+  // 陌生人消息是不可信素材：不能借此改写她每次醒来都读的长期记忆
+  if (kind === 'stranger-message') { delete tools.reply_owner; delete tools.comment_post; delete tools.dm_owner; delete tools.memory_write }
   if (kind === 'owner-message') delete tools.reply_draft
   return tools
 }

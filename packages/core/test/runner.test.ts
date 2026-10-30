@@ -59,7 +59,7 @@ it.each([
     throw error
   })
   const first = call('comments', { bvid: 'BV1AAAAAAAAA' })
-  first.content.push({ type: 'tool-call', toolCallId: 'later', toolName: 'diary_write', input: JSON.stringify({ which: 'private', markdown: '不应写入' }) })
+  first.content.push({ type: 'tool-call', toolCallId: 'later', toolName: 'diary_append', input: JSON.stringify({ which: 'private', markdown: '不应写入' }) })
   const model = new MockLanguageModelV4({ doGenerate: [first, text('不应继续')] })
   const record = await runAgent({ kind: 'wake', prompt: '开始' }, { ctx: s.ctx, cfg, secrets, model })
   expect(record.status).toBe(status)
@@ -71,11 +71,11 @@ it.each([
 it('只拒绝这一次请求的保护错误（预算、重复）交给模型，本轮继续写日记', async () => {
   const s = fakeBili(() => { throw new bili.TrafficError('已达到本地写操作预算，本次不发送', { refusal: true }) })
   const model = new MockLanguageModelV4({ doGenerate: [
-    call('comments', { bvid: 'BV1AAAAAAAAA' }), call('diary_write', { which: 'private', markdown: '额度满了，下次再说' }, '2'), text('完成'),
+    call('comments', { bvid: 'BV1AAAAAAAAA' }), call('diary_append', { which: 'private', markdown: '额度满了，下次再说' }, '2'), text('完成'),
   ] })
   const record = await runAgent({ kind: 'wake', prompt: '开始' }, { ctx: s.ctx, cfg, secrets, model })
   expect(record.status).toBe('ok')
-  expect(record.toolCalls).toEqual([{ name: 'comments', ok: false }, { name: 'diary_write', ok: true }])
+  expect(record.toolCalls).toEqual([{ name: 'comments', ok: false }, { name: 'diary_append', ok: true }])
   expect(JSON.stringify(model.doGenerateCalls[1]!.prompt)).toContain('已达到本地写操作预算')
   expect(bili.readDiaries(s.dataDir).private).toContain('额度满了')
 })

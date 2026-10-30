@@ -1,6 +1,6 @@
 # 日记分层记忆 Implementation Plan
 
-> **For agentic workers:** Steps use checkbox (`- [ ]`) syntax for tracking. Task 1–3 由 Codex 实现，Task 4–5 由 Claude 实现；每个 Task 完成后由 Claude 审核再提交。
+> **For agentic workers:** Steps use checkbox (`- [x]`) syntax for tracking. Task 1–3 由 Codex 实现，Task 4–5 由 Claude 实现；每个 Task 完成后由 Claude 审核再提交。
 
 **Goal:** agent 的日记从「全文读、整篇写」改为「长期记忆 + 近期条目 + 目录与搜索」，日记只追加，网页按条目从新到旧显示。
 
@@ -9,6 +9,11 @@
 **Tech Stack:** Node ≥22、TypeScript、vitest、zod 4、ai SDK `tool()`、React 19 + Mantine 9。
 
 **Spec:** `docs/superpowers/specs/2026-10-30-diary-memory-design.md`
+**进度（2026-10-30）：** Task 1–3 已在本地实现，待 Claude 审核，按用户要求未提交；Task 4–5 未开始，没有修改真实数据或部署。
+
+**验证：** `packages/bili` 全量 262 项、`packages/core` 全量 108 项通过；`npm exec tsc -- -b packages/bili packages/core` 通过。当前环境禁用测试子进程，验证使用 `npm exec -w packages/bili -- vitest run --pool=threads --maxWorkers=1` 与 `npm test -w packages/core -- --pool=threads --maxWorkers=1 --configLoader=native`；类型检查限制 `GOMAXPROCS=2`。并行验证曾因环境内存不足退出，以上为改成逐项运行后的结果，未改测试配置。
+
+**实现补充：** 追加前也拒绝正文或旧文件末尾未闭合的代码围栏，避免后续条目标题被吞进代码块；失败时原文件不变。
 
 ## Global Constraints
 
@@ -39,15 +44,15 @@
 **Interfaces:**
 - Produces: `type DiaryWhich = 'public' | 'private'`；`type DiaryEntry = { id: string; which: DiaryWhich; index: number; date: string | null; title: string; markdown: string; bvids: string[] }`；`parseDiary(which: DiaryWhich, markdown: string): DiaryEntry[]`（文件顺序）；`sortEntries(entries: DiaryEntry[]): DiaryEntry[]`（spec 第 5 节顺序，返回新数组）。
 
-- [ ] **Step 1: 写失败测试**，样本仿照 spec 第 3 节：一级标题；`## 2026-10-30 · 午（醒来）`；`## 2026-10-29 · 早（08:44 醒）` 内含 `### 12:12 他回了`；`## 2026-10-29 · 夜（19:41 醒）`；`## 2026-10-29 · 早`，正文里有围栏代码，其中一行 `## 2026-01-01 · 假的`；一条 `## 2026-02-30 · 非法`；末尾 `## 看过`（含两个 BV）和 `## 谁回过我`。以上即文件顺序。
+- [x] **Step 1: 写失败测试**，样本仿照 spec 第 3 节：一级标题；`## 2026-10-30 · 午（醒来）`；`## 2026-10-29 · 早（08:44 醒）` 内含 `### 12:12 他回了`；`## 2026-10-29 · 夜（19:41 醒）`；`## 2026-10-29 · 早`，正文里有围栏代码，其中一行 `## 2026-01-01 · 假的`；一条 `## 2026-02-30 · 非法`；末尾 `## 看过`（含两个 BV）和 `## 谁回过我`。以上即文件顺序。
   - `parseDiary` 后：条目数 = 序言 1 + 日期 4 + 非法 1 + 清单 2；`### 12:12 他回了` 留在它那篇里；围栏里的假标题不切条目。
   - `看过` 条目 `date: null`、`title: '看过'`、`bvids` 为那两个 BV；`2026-02-30` 那条 `date: null`。
   - ID 依次为 `public:0`、`public:1`…；`markdown` 拼回去等于原文。
   - `sortEntries` 后标题顺序：`午（醒来）`（10-30）→ `夜（19:41 醒）` → `早（08:44 醒）` → `早`（同日 08:00 估计 vs 08:44，08:44 更晚）→ 未标日期的按文件顺序（序言、非法、看过、谁回过我）。
   - 再加一个用例：同一天两条都无时间、无时段词时，文件里靠前的排前；同一天一条旧格式 `## 2026-10-30 · 早` 与程序追加的 `## 2026-10-30 · 21:30`（在文件末尾）时，21:30 排前。
-- [ ] **Step 2: 运行确认失败** `npm test -w packages/bili -- test/diary-entries.test.ts`，预期找不到模块。
-- [ ] **Step 3: 实现**：逐行扫描，记录 ``` 围栏状态；行首 `## ` 切条目；日期用 `/^## (\d{4}-\d{2}-\d{2}) · (.*)$/` 取出后用 `new Date(y, m-1, d)` 回检年月日相等；BV 用 `/BV[0-9A-Za-z]{10}/g` 去重。时间键：标题第一个 `\d{1,2}:\d{2}`，否则时段词（早 / 上午 08:00，午 / 中午 / 下午 12:00，晚 / 夜 20:00），否则 -1。
-- [ ] **Step 4: 运行通过** 同上命令，预期 PASS。
+- [x] **Step 2: 运行确认失败** `npm test -w packages/bili -- test/diary-entries.test.ts`，预期找不到模块。
+- [x] **Step 3: 实现**：逐行扫描，记录 ``` 围栏状态；行首 `## ` 切条目；日期用 `/^## (\d{4}-\d{2}-\d{2}) · (.*)$/` 取出后用 `new Date(y, m-1, d)` 回检年月日相等；BV 用 `/BV[0-9A-Za-z]{10}/g` 去重。时间键：标题第一个 `\d{1,2}:\d{2}`，否则时段词（早 / 上午 08:00，午 / 中午 / 下午 12:00，晚 / 夜 20:00），否则 -1。
+- [x] **Step 4: 运行通过** 同上命令，预期 PASS。
 
 ---
 
@@ -67,15 +72,15 @@
   - `readDiaryEntry(dataDir, id): DiaryEntry | null`。
   - `searchDiaries(dataDir, query: string, which?: DiaryWhich): { total: number; hits: { entry: string; which: DiaryWhich; date: string | null; title: string; excerpt: string }[] }`——前 `SEARCH_LIMIT` 条，摘录为首个命中前后共约 300 字。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
   - `追加不改旧字节，超过 200KB 仍可追加`：先用 `fs.writeFileSync` 放 210KB 旧文，`appendDiary(..., 'public', '今晚看了猫', 固定时间 2026-10-30 21:30 本地)`；断言新文件以旧 Buffer 开头、结尾含 `## 2026-10-30 · 21:30\n\n今晚看了猫`，私人日记文件不存在；返回的 `entry` 能被 `readDiaryEntry` 读回。
   - `追加正文带二级标题被拒绝`：`'## 看过\n…'` 抛错且文件不变；`'### 小节\n…'` 通过。
   - `记忆超 3000 字拒绝并保留旧内容`：先写 10 字，再写 3001 字抛错，`readMemory` 仍是 10 字；缺文件时 `readMemory` 返回 `''`。
   - `快照只含最近 3 个自然日`：条目日期 10-30、10-28、10-27 与一条 `## 看过`，`now` 为 10-30；`recent` 只有 10-30 与 10-28，`catalog` 含全部 4 条且 `total` 为 4。
   - `搜索按 BV、日期、关键词命中，零命中返回空`：断言 BV 命中 `看过` 条目，`2026-10-27` 命中那天的条目，`猫` 大小写无关命中，`不存在的词` 返回 `{ total: 0, hits: [] }`。
-- [ ] **Step 2: 运行确认失败** `npm test -w packages/bili -- test/diary.test.ts`。
-- [ ] **Step 3: 实现**。追加用一次 `fs.appendFileSync`（文件不以换行结尾时先补 `\n\n`），新建文件 `mode: 0o600`；记忆用临时文件 + rename，沿用 `writeDiary` 的写法。`readDiaries`、`writeDiary` 保持不变。
-- [ ] **Step 4: 运行通过** `npm test -w packages/bili -- test/diary.test.ts test/diary-entries.test.ts test/feed.test.ts`，`feed` 不需要修改。
+- [x] **Step 2: 运行确认失败** `npm test -w packages/bili -- test/diary.test.ts`。
+- [x] **Step 3: 实现**。追加用一次 `fs.appendFileSync`（文件不以换行结尾时先补 `\n\n`），新建文件 `mode: 0o600`；记忆用临时文件 + rename，沿用 `writeDiary` 的写法。`readDiaries`、`writeDiary` 保持不变。
+- [x] **Step 4: 运行通过** `npm test -w packages/bili -- test/diary.test.ts test/diary-entries.test.ts test/feed.test.ts`，`feed` 不需要修改。
 
 ---
 
@@ -94,16 +99,16 @@
   - `diary_search({ query: string, which?: 'public' | 'private' })`。
   - 删除 `diary_write`。
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
   - 工具清单：三种运行都有 `diary_read`、`diary_append`、`memory_write`、`diary_search`，都没有 `diary_write`；原有按来源裁剪的断言保留。
   - `diary_read` 的 inputSchema 转成 JSON Schema 后 `type === 'object'`（用 `z.toJSONSchema`）。
   - 追加 → 默认读取 → 搜索旧文 → 按 ID 回读走通一遍；回读内容包在 `wrapUntrusted` 里、正文里伪造的结束标记不能结束包装；主人昵称不打码。
   - 记忆为空时默认读取结果含「长期记忆是空的」；`memory_write` 3001 字在 schema 拒绝。
   - 提示词：唤醒提示含 `diary_append` 与 `memory_write`，不含 `diary_write`、不含「整篇」；消息提示要求回复前确认是否已回过。不逐句匹配文案。
   - `runner.test.ts` 里模拟的 `diary_write` 调用改为 `diary_append`，请求保护拒绝后仍能追加、取消后不落盘这两条保持通过。
-- [ ] **Step 2: 运行确认失败** `npm test -w packages/core`。
-- [ ] **Step 3: 实现**：工具接上 bili 函数，走现有 `run` 包装；文字结果用 `wrapUntrusted`，删掉「日记会被整篇覆盖写回」的旧注释并改成「记忆要整篇写回，打码会把昵称永久替换掉」。提示词按 spec 第 8 节改第 1、6、7 步和消息、跳过提示。
-- [ ] **Step 4: 运行通过** `npm test -w packages/core`。
+- [x] **Step 2: 运行确认失败** `npm test -w packages/core`。
+- [x] **Step 3: 实现**：工具接上 bili 函数，走现有 `run` 包装；文字结果用 `wrapUntrusted`，删掉「日记会被整篇覆盖写回」的旧注释并改成「记忆要整篇写回，打码会把昵称永久替换掉」。提示词按 spec 第 8 节改第 1、6、7 步和消息、跳过提示。
+- [x] **Step 4: 运行通过** `npm test -w packages/core`。
 
 ---
 

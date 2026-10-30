@@ -141,6 +141,10 @@ it('跳过看视频仍唤醒写日记，且不要求浏览与分享', async () =
   s.scheduler.start()
   await vi.advanceTimersByTimeAsync(0)
   expect(s.run).toHaveBeenCalledWith('wake', expect.stringContaining('本次跳过看视频'), expect.any(Function))
+  const prompt = s.run.mock.calls[0]![1]
+  expect(prompt).toContain('diary_append')
+  expect(prompt).toContain('memory_write')
+  expect(prompt).not.toContain('diary_write')
 })
 
 it('评论监听失败间隔翻倍，成功后恢复基础间隔', async () => {

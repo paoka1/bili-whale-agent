@@ -47,7 +47,8 @@ function seenBVs(ctx: BiliContext): Set<string> {
   try { ledger = JSON.parse(fs.readFileSync(dataPath(ctx.dataDir, 'quota.json'), 'utf8')) } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('评论账本无法读取，停止选题以免重复分享')
   }
-  for (const row of ledger.log ?? []) if (row.type === 'comment' && /^BV:BV[0-9A-Za-z]{10}$/.test(row.target ?? '')) seen.add(row.target!.slice(3))
+  // 私信分享同样记成 BV:…（普通私信是 dm:…，正则会挡掉）
+  for (const row of ledger.log ?? []) if ((row.type === 'comment' || row.type === 'dm') && /^BV:BV[0-9A-Za-z]{10}$/.test(row.target ?? '')) seen.add(row.target!.slice(3))
   for (const x of favItems(ctx)) seen.add(x.bvid)
   return seen
 }
