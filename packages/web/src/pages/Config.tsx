@@ -41,7 +41,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
   const interval = cfg.listen.commentIntervalSec
   const listening = cfg.listen.dm || cfg.listen.comment
   const reads = listenReadsPerDay(cfg.listen)
-  const listenHint = !listening ? '两项都关着，不检查。' : [
+  const listenHint = !listening ? '两项都关着，都留到她醒来时一起看。' : [
     INTERVALS.some((o) => o.value === String(interval)) ? '' : `当前是自定义的 ${interval} 秒，选一档会替换它。`,
     `有新消息最慢约 ${interval % 60 ? `${interval} 秒` : `${interval / 60} 分钟`}处理；监听每天约读 ${reads} 次`,
     cfg.risk.readDaily > 0 ? `，占每日读取上限 ${cfg.risk.readDaily} 次的 ${Math.round(reads / cfg.risk.readDaily * 100)}%。` : '。',
@@ -168,7 +168,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
       </Block>
 
       <Block title="监听">
-        <Switch label="主人私信时及时回复" description="关掉后她看不到你的私信，也会以为你没理她、逐渐少分享" checked={cfg.listen.dm} onChange={(e) => set('listen', { dm: e.currentTarget.checked })} />
+        <Switch label="主人私信时及时回复" description="关掉后，你的私信留到她按作息醒来时一起看" checked={cfg.listen.dm} onChange={(e) => set('listen', { dm: e.currentTarget.checked })} />
         <Switch label="有人回复或 @ 她时及时处理" description="关掉后，回复和 @ 留到她按作息醒来时一起看。新号长时间开着容易被风控" checked={cfg.listen.comment} onChange={(e) => set('listen', { comment: e.currentTarget.checked })} />
         <Stack gap={4}>
           <Text size="sm" fw={500}>多久检查一次（以上两项共用）</Text>

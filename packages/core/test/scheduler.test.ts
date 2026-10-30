@@ -75,6 +75,19 @@ it('同类消息排队时合并正文，主人与陌生人分开处理', async (
   expect(prompt).toContain('主人私信正文')
 })
 
+it('私信监听关着时平时不轮询，醒来后看一次主人私信', async () => {
+  const s = setup({ listen: { dm: false }, owner: { mid: '222' } })
+  s.scheduler.start()
+  await vi.advanceTimersByTimeAsync(60_000)
+  expect(bili.pullOwnerDms).not.toHaveBeenCalled()
+  vi.mocked(bili.pullOwnerDms).mockResolvedValueOnce({ messages: [{ id: 'dm', text: '主人私信正文', at: Date.now() }], state: { baseline: true, lastSeq: '1' } })
+  s.scheduler.wakeNow()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(bili.pullOwnerDms).toHaveBeenCalledTimes(1)
+  expect(s.run.mock.calls.map(([kind]) => kind)).toEqual(['manual', 'owner-message'])
+  expect(s.run.mock.calls[1]![1]).toContain('主人私信正文')
+})
+
 it('计划到点执行并持久化完成，重启不重复唤醒', async () => {
   const config = { night: { windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0 }, listen: { dm: false } }
   const s = setup(config), plan = makePlan(ConfigSchema.parse(config).night, {}, Date.now(), () => 0)

@@ -155,6 +155,8 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
         logFailure(`醒来失败（${(record.error ?? '未知原因').slice(0, 120)}），${retry.atText!.slice(11)} 再试一次（第 ${retry.retries}/${MAX_RETRIES} 次）`)
       }
       await afterRun(record, ctx)
+      // 私信监听关着时，醒来后看一次主人私信，和评论留到醒来时看保持一致
+      if ((event.kind === 'wake' || event.kind === 'manual') && record.status === 'ok' && !getConfig().listen.dm) await poll('dm', ctx, generation, true)
     } catch (e) {
       if (e instanceof LoginExpiredError && ctx) {
         suspend(ctx)
@@ -176,7 +178,8 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     } else queue.push(event)
     void drain()
   }
-  async function poll(source: 'comment' | 'dm', ctx: BiliContext, token: number): Promise<void> {
+  /** awake：醒来后顺便看一次，不受监听开关和轮询间隔限制 */
+  async function poll(source: 'comment' | 'dm', ctx: BiliContext, token: number, awake = false): Promise<void> {
     const cfg = getConfig(), policy = source === 'comment' ? comment : dm
     if (policy.busy) return
     const key = `${cfg.listen[source]}:${cfg.listen.commentIntervalSec}`
@@ -184,7 +187,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       policy.config = key
       policy.nextAt = policy.failures = 0
     }
-    if (!cfg.listen[source] || now() < policy.nextAt || !ctx.cred.sessdata || (source === 'dm' && !cfg.owner.mid)) return
+    if ((!awake && (!cfg.listen[source] || now() < policy.nextAt)) || !ctx.cred.sessdata || (source === 'dm' && !cfg.owner.mid)) return
     policy.busy = true
     const started = now()
     try {
@@ -203,7 +206,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
       } else {
         // 私信模块内部已合并持久化游标；这里只传首次基线，不另存第二份已读状态。
         const result = await pullOwnerDms(ctx, { baseline: false, lastSeq: null })
-        if (!active || token !== generation || !getConfig().listen.dm || suspended()) return
+        if (!active || token !== generation || (!awake && !getConfig().listen.dm) || suspended()) return
         if (result.messages.length) enqueue({ kind: 'owner-message', items: result.messages })
       }
       policy.failures = 0
