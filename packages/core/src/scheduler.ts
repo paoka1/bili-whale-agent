@@ -115,7 +115,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
     const cfg = getConfig()
     if (record.status === 'login-expired') suspend(ctx)
     // 手动唤醒和定时醒来一样以给主人的信结尾，一样推送
-    if ((record.kind === 'wake' || record.kind === 'manual') && record.status === 'ok' && record.finalText.trim()) await send(cfg, ctx, { title: '她醒来过一次', text: record.finalText })
+    if ((record.kind === 'wake' || record.kind === 'manual') && record.status === 'ok' && record.finalText.trim()) await send(cfg, ctx, { title: '她醒来过一次', text: record.finalText, letter: true })
     if (record.draftsAdded > 0) await send(cfg, ctx, { title: `有 ${record.draftsAdded} 条回复待你审核`, text: '请到网页的活动页审核回复草稿。' })
     if (record.status === 'paused') await send(cfg, ctx, { title: `请求保护已暂停：${record.error || '请检查请求保护状态'}`, text: '请在网页查看活动与请求保护状态，处理后再继续。' })
     if (record.status === 'login-expired') await send(cfg, ctx, { title: 'B 站登录失效，请在网页重新扫码', text: '调度已暂停，重新登录后恢复。' })
@@ -127,7 +127,7 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   function promptFor(event: Event): string {
     if (event.items) return messagePrompt(event.kind as 'owner-message' | 'stranger-message', event.items)
     const cfg = getConfig(), plan = event.plan
-    if (plan?.action === 'skip') return `【醒来】本次窗口：${plan.window}。本次跳过看视频，不浏览、收藏或主动分享；先 diary_read 读长期记忆、近期日记和目录，用 diary_append 分别追加本轮公开与私人日记，不重抄历史。结论、待办或往来有变化时用 memory_write 保存完整长期记忆（最多 3000 字），清掉已完成待办，不把猜测写成事实；长期记忆为空时这一轮必须整理一份。再用 log({ kind: 'round', note }) 写一句本轮感受，最后写给主人信，由程序推送。`
+    if (plan?.action === 'skip') return `【醒来】本次窗口：${plan.window}。本次跳过看视频，不浏览、收藏或主动分享；先 diary_read 读长期记忆、近期日记和目录，用 diary_append 分别追加本轮公开与私人日记，不重抄历史。结论、待办或往来有变化时用 memory_write 保存完整长期记忆（最多 3000 字），清掉已完成待办，不把猜测写成事实；长期记忆为空时这一轮必须整理一份。再用 log({ kind: 'round', note }) 写一句本轮感受，最后给主人写一封信（直接对他说话，不加标题，不超过 280 字），由程序推送。`
     return wakePrompt(cfg, { window: plan?.window ?? '手动唤醒', maxVideos: plan?.maxVideos ?? cfg.night.maxVideos, silenceDays: silenceDays() })
   }
   async function drain(): Promise<void> {

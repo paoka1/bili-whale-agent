@@ -34,6 +34,13 @@ it('私信推送超过 300 字时截断并提示看网页，免得被 dmOwner �
   expect(message.endsWith('…（全文见网页活动页）')).toBe(true)
 })
 
+it('写给主人的信私信时只发正文，不加标题', async () => {
+  const s = fakeBili(() => undefined), cfg = ConfigSchema.parse({ notify: { type: 'dm' } })
+  vi.mocked(bili.dmOwner).mockResolvedValue({ status: 'sent' })
+  await notify(cfg, s.ctx, { title: '她醒来过一次', text: '晚上好，今天看到一只猫。', letter: true })
+  expect(bili.dmOwner).toHaveBeenCalledWith(s.ctx, { message: '晚上好，今天看到一只猫。' })
+})
+
 it.each([
   ['https://example.com/hook', msg],
   ['https://open.feishu.cn/open-apis/bot/v2/hook/secret', { msg_type: 'text', content: { text: '通知\n今晚看到了猫' } }],

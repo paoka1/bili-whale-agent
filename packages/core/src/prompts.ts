@@ -25,6 +25,7 @@ export function wakePrompt(cfg: AppConfig, plan: { window: string; maxVideos: nu
     : '使用 dm_owner，message 含视频链接 https://www.bilibili.com/video/<BV>/，并传 share: { bvid, reason, score, rank: 1 }。'
   return [
     `【醒来】本次窗口：${plan.window}。主人已有 ${plan.silenceDays} 天没有反馈。`,
+    '你醒了。先想想此刻的心情，再去看视频；今天看到的、想到的，最后会写成一封信给主人。',
     ...(plan.silenceDays >= stopAt ? ['今天不主动分享，照常看视频、写两本日记，信里可以坦诚记录心情，不催促回应。']
       : plan.silenceDays >= cfg.share.silentAfterDays ? ['安静一点，今天最多分享一条；别把没有回应理解成需要增加打扰。'] : []),
     '按以下九步完成本轮，遇到保护暂停或登录失效立即收住：',
@@ -35,8 +36,8 @@ export function wakePrompt(cfg: AppConfig, plan: { window: string; maxVideos: nu
     `5) 对深读内容按口味契合、内容质量、独特性、值得给主人看的程度各 0–5 分，总分 0–20，只考虑排名第一。分享开关：${cfg.share.enabled ? '开启' : '关闭，本轮不分享'}；最低 ${cfg.share.minScore} 分、理由至少 8 字，每天最多 ${cfg.quota.shareDaily} 条，同视频 7 天一次。主人沉默 ${cfg.share.silentAfterDays} 天开始减少分享，达到 ${stopAt} 天停止主动分享。本机 share.via = ${cfg.share.via}，分享只走这一条：${share}`,
     '6) 分别 diary_append 本轮公开与私人日记，用散文与表格记下感受，私人日记可记本轮校准依据；表格里写上本轮看过的每个视频的 BV 号（选题靠日记里的 BV 排除看过的）。不重抄历史和长期清单。程序自动加日期标题，正文小节用 ###。',
     '7) inbox 扫最近 24 小时的回复与 @；回复主人前先查近期日记，必要时 diary_search，确认这条是否已经回过，避免重复回复。主人评论用 reply_owner，bvid、oid、root、parent 沿用原楼层；陌生人只用 reply_draft，不猜缺失坐标。成功回复后 diary_append 记下原消息坐标与处理结果。读到主人反馈后，结论、待办或往来有变化才 memory_write 保存整理后的完整长期记忆（最多 3000 字），清掉已完成待办，猜测不写成事实。长期记忆为空时，这一轮必须根据近期日记整理一份。',
-    '8) 从本轮日记里选最想对主人说的一段原文，加一句摘要，准备「给主人信」。推送由程序在运行结束后按配置完成。',
-    "9) 深读、分享、收藏、回复主人做成时程序已自动记进动态，不要再逐条 log；用 log({ kind: 'round', note }) 写一句本轮总结，然后结束。最后一条文字必须是「给主人信」正文，不夹工具计划或执行流水账。",
+    `8) 给主人写一封信：用「${cfg.persona.ownerTitle}」称呼他，直接对他说话，像朋友发私信；讲今天最想让他知道的事和你的心情，可以引用日记里的一两句；不加任何标题或小标题，不超过 280 字。推送由程序在运行结束后按配置完成。`,
+    "9) 深读、分享、收藏、回复主人做成时程序已自动记进动态，不要再逐条 log；用 log({ kind: 'round', note }) 写一句本轮总结，然后结束。最后一条文字就是这封信本身，不加标题，不夹工具计划或执行流水账。",
   ].join('\n')
 }
 

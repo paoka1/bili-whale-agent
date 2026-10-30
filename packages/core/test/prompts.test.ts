@@ -10,13 +10,15 @@ it('系统提示包含身份、四条红线与不可信规则，人设只取前 
   expect(prompt).toContain('4)')
 })
 
-it('唤醒按配置只提供一种分享路径，最后文字是给主人信', () => {
+it('唤醒按配置只提供一种分享路径，最后文字是直接写给主人的信', () => {
   const cfg = ConfigSchema.parse({ share: { via: 'dm' } })
   const plan = { window: '20:00–24:00', maxVideos: 5, silenceDays: 7 }
   const dm = wakePrompt(cfg, plan)
   expect(dm).toContain('dm_owner')
   expect(dm).not.toContain('comment_post')
-  expect(dm).toContain('给主人信')
+  expect(dm).toContain('给主人写一封信')
+  expect(dm).toContain('280 字')
+  expect(dm).not.toMatch(/摘要|原文/)
   expect(dm).toContain('diary_append')
   expect(dm).toContain('memory_write')
   expect(dm).toContain('长期记忆为空')

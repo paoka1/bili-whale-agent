@@ -2,7 +2,8 @@
 import { dmOwner, type BiliContext } from '@bili-whale/bili'
 import type { AppConfig } from './config.js'
 
-export type Notification = { title: string; text: string }
+/** letter：这条本身就是写给主人的信，私信时只发正文，不加标题 */
+export type Notification = { title: string; text: string; letter?: boolean }
 export type NotifyResult = { ok: boolean; error?: string }
 
 function webhookBody(url: string, msg: Notification): object {
@@ -12,7 +13,7 @@ function webhookBody(url: string, msg: Notification): object {
   // 移植上游 notify.mjs 的文本报文适配；只匹配真实域名，不匹配路径或查询参数。
   if (matches('open.feishu.cn') || matches('larksuite.com')) return { msg_type: 'text', content: { text: line } }
   if (matches('oapi.dingtalk.com') || matches('qyapi.weixin.qq.com')) return { msgtype: 'text', text: { content: line } }
-  return msg
+  return { title: msg.title, text: msg.text }
 }
 
 export async function notify(cfg: AppConfig, ctx: BiliContext, msg: Notification): Promise<NotifyResult> {
@@ -21,7 +22,7 @@ export async function notify(cfg: AppConfig, ctx: BiliContext, msg: Notification
     try {
       // dmOwner 负责互关、额度与演练模式，不绕过任何写闸门。
       // dmOwner 限 300 字，给主人的信常更长：截断并指向网页，免得整条被拒
-      const full = `${msg.title}\n${msg.text}`, tail = '…（全文见网页活动页）'
+      const full = msg.letter ? msg.text : `${msg.title}\n${msg.text}`, tail = '…（全文见网页活动页）'
       const message = full.length <= 300 ? full : full.slice(0, 300 - tail.length) + tail
       const result = await dmOwner(ctx, { message })
       return result.status === 'refused' ? { ok: false, error: result.reason ?? '私信推送被拒绝' } : { ok: true }
