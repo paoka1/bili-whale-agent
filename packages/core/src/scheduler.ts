@@ -114,7 +114,8 @@ export function createScheduler(deps: SchedulerDeps): Scheduler {
   async function afterRun(record: RunRecord, ctx: BiliContext): Promise<void> {
     const cfg = getConfig()
     if (record.status === 'login-expired') suspend(ctx)
-    if (record.kind === 'wake' && record.status === 'ok' && record.finalText.trim()) await send(cfg, ctx, { title: '她醒来过一次', text: record.finalText })
+    // 手动唤醒和定时醒来一样以给主人的信结尾，一样推送
+    if ((record.kind === 'wake' || record.kind === 'manual') && record.status === 'ok' && record.finalText.trim()) await send(cfg, ctx, { title: '她醒来过一次', text: record.finalText })
     if (record.draftsAdded > 0) await send(cfg, ctx, { title: `有 ${record.draftsAdded} 条回复待你审核`, text: '请到网页的活动页审核回复草稿。' })
     if (record.status === 'paused') await send(cfg, ctx, { title: `请求保护已暂停：${record.error || '请检查请求保护状态'}`, text: '请在网页查看活动与请求保护状态，处理后再继续。' })
     if (record.status === 'login-expired') await send(cfg, ctx, { title: 'B 站登录失效，请在网页重新扫码', text: '调度已暂停，重新登录后恢复。' })

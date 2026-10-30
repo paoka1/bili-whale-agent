@@ -229,6 +229,7 @@ it('去重区分 reply 与 at，持久化只保留最近五百条', async () => 
 
 it.each([
   [{ kind: 'wake', finalText: '给主人信：今晚看了猫' }, '她醒来过一次'],
+  [{ kind: 'manual', finalText: '给主人信：手动叫醒也写信' }, '她醒来过一次'],
   [{ draftsAdded: 2 }, '有 2 条回复待你审核'],
   [{ status: 'paused', error: '需要验证' }, '请求保护已暂停：需要验证'],
   [{ status: 'login-expired' }, 'B 站登录失效，请在网页重新扫码'],
