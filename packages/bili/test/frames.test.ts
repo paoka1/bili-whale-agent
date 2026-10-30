@@ -170,6 +170,20 @@ it('拦截跳转到白名单外的视频下载，不访问目标', async () => {
   expect(fs.readdirSync(path.join(ctx.dataDir, 'shots', 'video'))).toEqual([])
 })
 
+it('主直链跳转到白名单外时改用备用 CDN 下载', async () => {
+  fakeFfmpeg()
+  const BACKUP = 'https://upos-backup.bilivideo.com/video.mp4'
+  const { ctx, calls } = fakeBili((url) => {
+    if (url.pathname === '/x/player/wbi/playurl') return json({ code: 0, data: { durl: [{ url: CDN, backup_url: [BACKUP] }] } })
+    if (url.hostname === 'upos.bilivideo.com') return new Response(null, { status: 302, headers: { location: 'https://cache.smtcdns.com/video.mp4' } })
+    if (url.hostname === 'upos-backup.bilivideo.com') return new Response('分段视频内容', { headers: { 'content-type': 'video/mp4' } })
+    return route(url)
+  })
+  expect(await captureFrames(ctx, 'BV1AAAAAAAAA')).toMatchObject({ ok: true })
+  expect(calls.some((c) => c.url.hostname === 'cache.smtcdns.com')).toBe(false)
+  expect(fs.readdirSync(path.join(ctx.dataDir, 'shots', 'video'))).toHaveLength(1)
+})
+
 it('允许白名单内相对跳转，保留 CDN 的无 cookie 请求', async () => {
   fakeFfmpeg()
   const { ctx, calls } = fakeBili((url) => {

@@ -96,11 +96,11 @@ export async function captureFrames(ctx: BiliContext, bvid: string, opt: Capture
     if (play.code !== 0 || !stream?.url) return { ok: false, reason }
     reason = '视频直链不在 B 站域名白名单内，跳过看画面'
     // 首选地址可能落在白名单外的 PCDN 域名；只从 B 站给出的主/备用地址里选择白名单内的 CDN。
-    let url: URL | undefined
+    const urls: URL[] = []
     for (const input of [stream.url, ...(stream.backup_url ?? [])]) {
-      try { url = assertBiliUrl(input); break } catch { /* 不请求白名单外的地址 */ }
+      try { urls.push(assertBiliUrl(input)) } catch { /* 不请求白名单外的地址 */ }
     }
-    if (!url) return { ok: false, reason }
+    if (!urls.length) return { ok: false, reason }
 
     reason = '无法创建抽帧文件，跳过看画面'
     const outDir = path.resolve(dataPath(ctx.dataDir, 'shots', 'video'))
@@ -110,7 +110,19 @@ export async function captureFrames(ctx: BiliContext, bvid: string, opt: Capture
     const stamp = `${new Date(ctx.now()).toISOString().replace(/[:.]/g, '-')}-${randomUUID().slice(0, 8)}`
     imagePath = path.join(outDir, `${bvid}-${stamp}-${grid}.jpg`)
     reason = '视频下载失败，跳过看画面'
-    await download(ctx, url, file)
+    // 2026-10-30 服务器实测：部分网络把主 CDN 302 到白名单外的运营商缓存，备用 CDN 仍可直连，逐个尝试。
+    let downloaded = false
+    for (const url of urls) {
+      try {
+        await download(ctx, url, file)
+        downloaded = true
+        break
+      } catch (e) {
+        if (isFatalBiliError(e)) throw e
+        await fs.promises.rm(file, { force: true })
+      }
+    }
+    if (!downloaded) return { ok: false, reason }
 
     reason = 'ffmpeg 抽帧失败，跳过看画面'
     const count = grid === '3x3' ? 9 : 16
