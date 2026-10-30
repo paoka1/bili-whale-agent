@@ -96,7 +96,7 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
 
       <Block title="主人">
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <TextInput label="主人 mid" description="只私信这个账号；分享时 @ 他" value={cfg.owner.mid} onChange={(e) => set('owner', { mid: e.currentTarget.value.trim() })} />
+          <TextInput label="主人 mid" description="只私信这个账号，要和她的小号互相关注；评论分享时 @ 他" value={cfg.owner.mid} onChange={(e) => set('owner', { mid: e.currentTarget.value.trim() })} />
           <TextInput label="主人昵称" description="分享评论里 @ 用的名字" value={cfg.owner.name} onChange={(e) => set('owner', { name: e.currentTarget.value })} />
         </SimpleGrid>
       </Block>
@@ -150,6 +150,11 @@ export function Config({ onLoggedOut }: { onLoggedOut: () => void }) {
           onChange={(type) => set('notify', { type: (type ?? 'none') as AppConfig['notify']['type'] })}
           data={[{ value: 'none', label: '不推送' }, { value: 'dm', label: 'B 站私信给主人（演练模式下不发）' }, { value: 'webhook', label: 'Webhook（飞书 / 钉钉 / 企业微信 / 通用 JSON）' }]} />
         {cfg.notify.type === 'webhook' && <TextInput label="Webhook 地址" value={cfg.notify.url} onChange={(e) => set('notify', { url: e.currentTarget.value.trim() })} />}
+        {((cfg.share.enabled && cfg.share.via === 'dm') || cfg.notify.type === 'dm') && (
+          <Alert color="blue" variant="light" py={8}>
+            <Text size="sm">私信要求她的小号和主人互相关注：用主号关注小号，再用小号关注主号。没互关时私信发不出去，运行记录里会显示「私信通道要求双方互相关注」。</Text>
+          </Alert>
+        )}
       </Block>
 
       <Block title="监听">

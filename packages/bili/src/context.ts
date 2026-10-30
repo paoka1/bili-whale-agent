@@ -28,6 +28,6 @@ export function defaultSettings(): BiliSettings {
     preferences: { like: [], dislike: ['带货', '擦边', '标题党', '纯搬运'] },
     risk: { ...RISK_DEFAULTS },
     quota: { shareDaily: 3 },
-    share: { enabled: true, via: 'comment', minScore: 13, silentAfterDays: 3 },
+    share: { enabled: true, via: 'dm', minScore: 13, silentAfterDays: 3 },
   }
 }

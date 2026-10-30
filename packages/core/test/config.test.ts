@@ -25,6 +25,8 @@ it('空目录合并中性默认值，默认开启演练且监听本机', () => {
   expect(config.night).toMatchObject({ windows: [{ start: '20:00', end: '24:00', wakes: 1 }], skipChance: 0.3, minGapMin: 10, maxVideos: 5 })
   expect(maxWakes(config.night)).toBe(1)
   expect(config.listen).toEqual({ comment: false, commentIntervalSec: 60, dm: true })
+  // 新号用评论 @ 主人容易被 B 站静默隐藏，默认走私信
+  expect(config.share.via).toBe('dm')
 })
 
 it('局部保存递归合并，数组替换，配置变化即时生效且零额度不会被默认值覆盖', () => {
