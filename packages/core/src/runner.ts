@@ -10,7 +10,7 @@ import type { Secrets } from './secrets.js'
 import { buildTools, type DeepOutput, type RunKind } from './tools.js'
 import { makeDescribeImage } from './vision.js'
 
-export type ToolCallRecord = { name: string; ok: boolean }
+export type ToolCallRecord = { name: string; ok: boolean; error?: string }
 export type RunRecord = {
   id: string; kind: RunKind; startedAt: string; endedAt: string
   status: 'ok' | 'failed' | 'timeout' | 'paused' | 'login-expired'
@@ -32,6 +32,14 @@ export async function runAgent(input: { kind: RunKind; prompt: string }, deps: {
       if (secret) text = text.split(secret).join('***')
     }
     return text
+  }
+  // 失败原因截短存进运行记录：只交给模型的话用完就丢，事后查不出为什么失败
+  const recorded = new Set<string>()
+  const errorText = (e: unknown) => e instanceof Error ? e.message : String(e)
+  const recordCall = (id: string, name: string, error?: string) => {
+    recorded.add(id)
+    record.toolCalls.push(error === undefined ? { name, ok: true } : { name, ok: false, error: redact(error).slice(0, 200) })
+    deps.onToolCall?.(record.toolCalls.at(-1)!)
   }
   let draftsBefore: Set<string> | undefined
   try {
@@ -63,12 +71,17 @@ export async function runAgent(input: { kind: RunKind; prompt: string }, deps: {
       },
       onToolExecutionEnd: ({ toolCall, toolOutput }) => {
         const failed = toolOutput.type === 'tool-error'
-        const output = failed ? undefined : toolOutput.output as { status?: string; ok?: boolean } | undefined
-        record.toolCalls.push({ name: toolCall.toolName, ok: !failed && output?.status !== 'refused' && output?.ok !== false })
-        deps.onToolCall?.(record.toolCalls.at(-1)!)
+        const output = failed ? undefined : toolOutput.output as { status?: string; ok?: boolean; reason?: string } | undefined
+        const refused = output?.status === 'refused' || output?.ok === false
+        recordCall(toolCall.toolCallId, toolCall.toolName, failed ? errorText(toolOutput.error) : refused ? output?.reason ?? '未说明原因' : undefined)
         if (failed && (toolOutput.error instanceof TrafficError || toolOutput.error instanceof LoginExpiredError)) fatal.abort(toolOutput.error)
       },
-      onStepEnd: (step) => { record.steps++; record.finalText = step.text },
+      onStepEnd: (step) => {
+        // 参数没通过校验的调用不会执行，也就没有 onToolExecutionEnd，从这一步的结果里补记
+        for (const part of step.content) if (part.type === 'tool-error' && !recorded.has(part.toolCallId)) recordCall(part.toolCallId, part.toolName, errorText(part.error))
+        record.steps++
+        record.finalText = step.text
+      },
     })
     signal.throwIfAborted()
     record.finalText = result.text

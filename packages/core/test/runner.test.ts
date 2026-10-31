@@ -63,7 +63,7 @@ it.each([
   const model = new MockLanguageModelV4({ doGenerate: [first, text('不应继续')] })
   const record = await runAgent({ kind: 'wake', prompt: '开始' }, { ctx: s.ctx, cfg, secrets, model })
   expect(record.status).toBe(status)
-  expect(record.toolCalls).toEqual([{ name: 'comments', ok: false }])
+  expect(record.toolCalls).toEqual([{ name: 'comments', ok: false, error: error.message }])
   expect(model.doGenerateCalls).toHaveLength(1)
   expect(bili.readDiaries(s.dataDir).private).toBe('')
 })
@@ -75,7 +75,7 @@ it('只拒绝这一次请求的保护错误（预算、重复）交给模型，�
   ] })
   const record = await runAgent({ kind: 'wake', prompt: '开始' }, { ctx: s.ctx, cfg, secrets, model })
   expect(record.status).toBe('ok')
-  expect(record.toolCalls).toEqual([{ name: 'comments', ok: false }, { name: 'diary_append', ok: true }])
+  expect(record.toolCalls).toEqual([{ name: 'comments', ok: false, error: expect.stringContaining('已达到本地写操作预算') }, { name: 'diary_append', ok: true }])
   expect(JSON.stringify(model.doGenerateCalls[1]!.prompt)).toContain('已达到本地写操作预算')
   expect(bili.readDiaries(s.dataDir).private).toContain('额度满了')
 })
@@ -114,7 +114,15 @@ it('新草稿计入运行结果，被业务闸门拒绝的工具记录为失败'
     call('dm_owner', { message: '未配置主人不能发送' }, 'dm'), text('结束'),
   ] })
   const record = await runAgent({ kind: 'wake', prompt: '处理消息' }, { ctx: s.ctx, cfg, secrets, model })
-  expect(record).toMatchObject({ status: 'ok', draftsAdded: 1, toolCalls: [{ name: 'reply_draft', ok: true }, { name: 'dm_owner', ok: false }] })
+  expect(record).toMatchObject({ status: 'ok', draftsAdded: 1 })
+  expect(record.toolCalls).toEqual([{ name: 'reply_draft', ok: true }, { name: 'dm_owner', ok: false, error: '私信需要先配置主人 mid' }])
+})
+
+it('参数不对的工具调用也记下失败原因', async () => {
+  const s = fakeBili(() => undefined)
+  const model = new MockLanguageModelV4({ doGenerate: [call('diary_append', { markdown: '漏了 which' }), text('结束')] })
+  const record = await runAgent({ kind: 'wake', prompt: '开始' }, { ctx: s.ctx, cfg, secrets, model })
+  expect(record.toolCalls).toEqual([{ name: 'diary_append', ok: false, error: expect.stringContaining('which') }])
 })
 
 it('主模型使用配置的兼容接口、模型名与密钥', async () => {

@@ -206,7 +206,7 @@ function DiaryEntries({ entries, day, onPick }: { entries: DiaryView[]; day: str
   )
 }
 
-/** 一次运行：类型、状态、用时、调用了哪些工具（失败的标红）、报错与最后的话 */
+/** 一次运行：类型、状态、用时、调用了哪些工具（失败的标红并写出原因）、报错与最后的话 */
 function RunCard({ run, zone }: { run: RunRecord; zone: string }) {
   const status = RUN_STATUS[run.status] ?? { label: run.status, color: 'gray' }
   const minutes = Math.max(0, Math.round((Date.parse(run.endedAt) - Date.parse(run.startedAt)) / 6000) / 10)
@@ -222,6 +222,7 @@ function RunCard({ run, zone }: { run: RunRecord; zone: string }) {
           {run.toolCalls.map((t, i) => <Badge key={i} size="lg" variant={t.ok ? 'default' : 'filled'} color={t.ok ? 'gray' : 'red'}>{toolLabel(t.name)}{t.ok ? '' : ' ✗'}</Badge>)}
         </Group>
       )}
+      {run.toolCalls.map((t, i) => t.error && <Text key={i} size="xs" c="red" mt={4}>{toolLabel(t.name)}失败：{t.error.replace(/^工具执行失败：/, '')}</Text>)}
       {run.error && <Text size="xs" c="red" mt={6}>{run.error}</Text>}
       {run.finalText.trim() && (
         <Spoiler maxHeight={200} showLabel="展开" hideLabel="收起" mt={6}>
